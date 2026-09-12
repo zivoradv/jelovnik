@@ -42,9 +42,14 @@ export default function NavBar() {
               Moj dug
             </Button>
             {user.role === 'admin' && (
-              <Button color="inherit" component={Link} href="/admin">
-                Administracija
-              </Button>
+              <>
+                <Button color="inherit" component={Link} href="/admin?tab=porudzbine">
+                  Porudžbine
+                </Button>
+                <Button color="inherit" component={Link} href="/admin">
+                  Administracija
+                </Button>
+              </>
             )}
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
               <Chip

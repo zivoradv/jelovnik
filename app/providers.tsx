@@ -16,7 +16,7 @@ export default function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <NavBar />
         <Box component="main" sx={{ minHeight: '100dvh' }}>
-          <Container maxWidth="md" sx={{ py: { xs: 2, sm: 4 } }}>
+          <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
             {children}
           </Container>
         </Box>

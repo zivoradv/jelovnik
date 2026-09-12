@@ -22,8 +22,10 @@ import {
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { useAuth } from './auth-context';
 import { WEEKDAYS } from '@/lib/constants';
 import {
@@ -51,6 +53,7 @@ interface OrderRow {
   mealId: number | null;
   customText: string | null;
   note: string | null;
+  quantity: number;
 }
 
 function todayMidnight(): Date {
@@ -81,15 +84,15 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [savedOpen, setSavedOpen] = useState(false);
 
-  // Uređivačko stanje porudžbine
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Uređivačko stanje porudžbine.
+  // quantities[mealId] = broj porcija (>0 znači da je jelo izabrano).
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [customItems, setCustomItems] = useState<string[]>([]);
 
   const weekDays = useMemo(() => workdaysOfWeek(weekAnchor), [weekAnchor]);
   const selDateObj = fromISODate(selectedDate);
   const isPast = selDateObj < todayMidnight();
-  const dayOfWeek = selDateObj.getDay();
 
   const loadDay = useCallback(async (dateStr: string) => {
     setLoading(true);
@@ -113,18 +116,18 @@ export default function HomePage() {
 
       // Popuni uređivačko stanje iz sačuvanih stavki korisnika
       const mine: OrderRow[] = ordersData.mine || [];
-      const sel = new Set<number>();
+      const qty: Record<number, number> = {};
       const noteMap: Record<number, string> = {};
       const customs: string[] = [];
       mine.forEach((o) => {
         if (o.mealId !== null) {
-          sel.add(o.mealId);
+          qty[o.mealId] = o.quantity ?? 1;
           if (o.note) noteMap[o.mealId] = o.note;
         } else if (o.customText) {
           customs.push(o.customText);
         }
       });
-      setSelected(sel);
+      setQuantities(qty);
       setNotes(noteMap);
       setCustomItems(customs);
     } catch {
@@ -139,13 +142,19 @@ export default function HomePage() {
   }, [user, selectedDate, loadDay]);
 
   function toggleMeal(id: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+    setQuantities((prev) => {
+      const next = { ...prev };
+      if ((next[id] ?? 0) > 0) delete next[id];
+      else next[id] = 1;
+      return next;
+    });
+  }
+
+  function setQty(id: number, q: number) {
+    setQuantities((prev) => {
+      const next = { ...prev };
+      if (q <= 0) delete next[id];
+      else next[id] = Math.min(99, q);
       return next;
     });
   }
@@ -157,8 +166,8 @@ export default function HomePage() {
   function shiftWeek(deltaWeeks: number) {
     const newAnchor = addDays(startOfWeek(weekAnchor), deltaWeeks * 7);
     setWeekAnchor(newAnchor);
-    // Zadrži isti dan u nedelji ako je moguće
-    const targetDow = dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0;
+    const dow = fromISODate(selectedDate).getDay();
+    const targetDow = dow >= 1 && dow <= 5 ? dow - 1 : 0;
     const days = workdaysOfWeek(newAnchor);
     setSelectedDate(toISODate(days[targetDow]));
   }
@@ -168,9 +177,10 @@ export default function HomePage() {
     setError('');
     try {
       const items = [
-        ...Array.from(selected).map((mealId) => ({
-          mealId,
-          note: notes[mealId] || null,
+        ...Object.entries(quantities).map(([mealId, qty]) => ({
+          mealId: Number(mealId),
+          quantity: qty,
+          note: notes[Number(mealId)] || null,
         })),
         ...customItems
           .map((t) => t.trim())
@@ -196,13 +206,32 @@ export default function HomePage() {
   const kuvana = menu.filter((m) => m.category === 'kuvano');
   const suva = menu.filter((m) => m.category === 'suvo');
 
-  const totalPrice = useMemo(() => {
-    let sum = 0;
-    menu.forEach((m) => {
-      if (selected.has(m.id)) sum += Number(m.price) || 0;
-    });
-    return sum;
-  }, [menu, selected]);
+  // Stavke za "račun" (izabrana jela sa količinom).
+  const receiptItems = useMemo(
+    () =>
+      menu
+        .filter((m) => (quantities[m.id] ?? 0) > 0)
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          qty: quantities[m.id],
+          price: Number(m.price) || 0,
+        })),
+    [menu, quantities],
+  );
+  const receiptCustoms = useMemo(
+    () => customItems.map((c) => c.trim()).filter(Boolean),
+    [customItems],
+  );
+
+  const totalPrice = useMemo(
+    () => receiptItems.reduce((sum, it) => sum + it.price * it.qty, 0),
+    [receiptItems],
+  );
+  const portionCount = useMemo(
+    () => receiptItems.reduce((a, it) => a + it.qty, 0) + receiptCustoms.length,
+    [receiptItems, receiptCustoms],
+  );
 
   if (authLoading || !user) {
     return (
@@ -219,8 +248,8 @@ export default function HomePage() {
           Šta jedemo?
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Izaberi obrok za željeni dan. Možeš izabrati i dva jela, dodati napomenu
-          ili upisati nešto svoje.
+          Izaberi obrok za željeni dan. Možeš izabrati više jela, promeniti količinu,
+          dodati napomenu ili upisati nešto svoje.
         </Typography>
       </Box>
 
@@ -294,125 +323,148 @@ export default function HomePage() {
       ) : menu.length === 0 ? (
         <Alert severity="warning">Za ovaj dan još nije unet meni.</Alert>
       ) : (
-        <>
-          {kuvana.length > 0 && (
-            <Section title="Kuvana jela">
-              {kuvana.map((m) => (
-                <MealItem
-                  key={m.id}
-                  meal={m}
-                  checked={selected.has(m.id)}
-                  count={counts[m.id] || 0}
-                  note={notes[m.id] || ''}
-                  disabled={isPast}
-                  onToggle={() => toggleMeal(m.id)}
-                  onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
-                />
-              ))}
-            </Section>
-          )}
-
-          {suva.length > 0 && (
-            <Section title="Suvi obrok">
-              {suva.map((m) => (
-                <MealItem
-                  key={m.id}
-                  meal={m}
-                  checked={selected.has(m.id)}
-                  count={counts[m.id] || 0}
-                  note={notes[m.id] || ''}
-                  disabled={isPast}
-                  onToggle={() => toggleMeal(m.id)}
-                  onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
-                />
-              ))}
-            </Section>
-          )}
-
-          {/* Sopstvene porudžbine */}
-          <Section title="Nešto drugo?">
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Ako ti ništa ne odgovara, upiši šta želiš.
-            </Typography>
-            <Stack spacing={1}>
-              {customItems.map((val, idx) => (
-                <Stack direction="row" spacing={1} key={idx}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="npr. Grčka salata bez luka"
-                    value={val}
+        <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+          {/* Leva kolona: jelovnik */}
+          <Stack spacing={3} sx={{ flexGrow: 1, minWidth: 0 }}>
+            {kuvana.length > 0 && (
+              <Section title="Kuvana jela">
+                {kuvana.map((m) => (
+                  <MealItem
+                    key={m.id}
+                    meal={m}
+                    qty={quantities[m.id] || 0}
+                    count={counts[m.id] || 0}
+                    note={notes[m.id] || ''}
                     disabled={isPast}
-                    onChange={(e) =>
-                      setCustomItems((items) =>
-                        items.map((v, i) => (i === idx ? e.target.value : v)),
-                      )
-                    }
+                    onToggle={() => toggleMeal(m.id)}
+                    onQty={(q) => setQty(m.id, q)}
+                    onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
                   />
-                  <IconButton
-                    aria-label="Ukloni"
-                    disabled={isPast}
-                    onClick={() =>
-                      setCustomItems((items) => items.filter((_, i) => i !== idx))
-                    }
-                  >
-                    <DeleteOutlineIcon />
-                  </IconButton>
-                </Stack>
-              ))}
-              {!isPast && (
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={() => setCustomItems((items) => [...items, ''])}
-                  sx={{ alignSelf: 'flex-start' }}
-                >
-                  Dodaj svoju stavku
-                </Button>
-              )}
-            </Stack>
-          </Section>
+                ))}
+              </Section>
+            )}
 
-          {/* Snimanje */}
+            {suva.length > 0 && (
+              <Section title="Suvi obrok">
+                {suva.map((m) => (
+                  <MealItem
+                    key={m.id}
+                    meal={m}
+                    qty={quantities[m.id] || 0}
+                    count={counts[m.id] || 0}
+                    note={notes[m.id] || ''}
+                    disabled={isPast}
+                    onToggle={() => toggleMeal(m.id)}
+                    onQty={(q) => setQty(m.id, q)}
+                    onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
+                  />
+                ))}
+              </Section>
+            )}
+
+            {/* Sopstvene porudžbine */}
+            <Section title="Nešto drugo?">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Ako ti ništa ne odgovara, upiši šta želiš.
+              </Typography>
+              <Stack spacing={1}>
+                {customItems.map((val, idx) => (
+                  <Stack direction="row" spacing={1} key={idx}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="npr. Grčka salata bez luka"
+                      value={val}
+                      disabled={isPast}
+                      onChange={(e) =>
+                        setCustomItems((items) =>
+                          items.map((v, i) => (i === idx ? e.target.value : v)),
+                        )
+                      }
+                    />
+                    <IconButton
+                      aria-label="Ukloni"
+                      disabled={isPast}
+                      onClick={() =>
+                        setCustomItems((items) => items.filter((_, i) => i !== idx))
+                      }
+                    >
+                      <DeleteOutlineIcon />
+                    </IconButton>
+                  </Stack>
+                ))}
+                {!isPast && (
+                  <Button
+                    startIcon={<AddIcon />}
+                    onClick={() => setCustomItems((items) => [...items, ''])}
+                    sx={{ alignSelf: 'flex-start' }}
+                  >
+                    Dodaj svoju stavku
+                  </Button>
+                )}
+              </Stack>
+            </Section>
+          </Stack>
+
+          {/* Desna kolona: račun (samo na širem ekranu) */}
           {!isPast && (
             <Box
               sx={{
+                width: 300,
+                flexShrink: 0,
+                display: { xs: 'none', md: 'block' },
                 position: 'sticky',
-                bottom: 16,
-                zIndex: 2,
+                top: 84,
               }}
             >
-              <Card sx={{ boxShadow: 3 }}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    spacing={2}
-                  >
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Izabrano: {selected.size + customItems.filter((c) => c.trim()).length}
-                      </Typography>
-                      {totalPrice > 0 && (
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {totalPrice.toLocaleString('sr-RS')} RSD
-                        </Typography>
-                      )}
-                    </Box>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      onClick={save}
-                      disabled={saving}
-                    >
-                      {saving ? 'Čuvanje…' : 'Sačuvaj porudžbinu'}
-                    </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
+              <ReceiptCard
+                items={receiptItems}
+                customs={receiptCustoms}
+                total={totalPrice}
+                portionCount={portionCount}
+                saving={saving}
+                onSave={save}
+              />
             </Box>
           )}
-        </>
+        </Box>
+      )}
+
+      {/* Mobilna traka za snimanje (uski ekran) */}
+      {!isPast && menu.length > 0 && (
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 16,
+            zIndex: 2,
+            display: { xs: 'block', md: 'none' },
+          }}
+        >
+          <Card sx={{ boxShadow: 3 }}>
+            <CardContent sx={{ py: 1.5 }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                spacing={2}
+              >
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Porcija: {portionCount}
+                  </Typography>
+                  {totalPrice > 0 && (
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      {totalPrice.toLocaleString('sr-RS')} RSD
+                    </Typography>
+                  )}
+                </Box>
+                <Button variant="contained" size="large" onClick={save} disabled={saving}>
+                  {saving ? 'Čuvanje…' : 'Sačuvaj'}
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
       )}
 
       <Snackbar
@@ -440,23 +492,118 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function ReceiptCard({
+  items,
+  customs,
+  total,
+  portionCount,
+  saving,
+  onSave,
+}: {
+  items: { id: number; name: string; qty: number; price: number }[];
+  customs: string[];
+  total: number;
+  portionCount: number;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  const empty = items.length === 0 && customs.length === 0;
+  return (
+    <Card sx={{ boxShadow: 3 }}>
+      <CardContent>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <ReceiptLongIcon color="primary" />
+          <Typography variant="h6">Tvoja porudžbina</Typography>
+        </Stack>
+        <Divider sx={{ mb: 1.5 }} />
+
+        {empty ? (
+          <Typography variant="body2" color="text.secondary">
+            Još ništa nije izabrano.
+          </Typography>
+        ) : (
+          <Stack spacing={0.75}>
+            {items.map((it) => (
+              <Stack
+                key={it.id}
+                direction="row"
+                justifyContent="space-between"
+                spacing={1}
+              >
+                <Typography variant="body2">
+                  {it.name}
+                  {it.qty > 1 && (
+                    <Typography component="span" sx={{ fontWeight: 700 }}>
+                      {' '}×{it.qty}
+                    </Typography>
+                  )}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                  {(it.price * it.qty).toLocaleString('sr-RS')} RSD
+                </Typography>
+              </Stack>
+            ))}
+            {customs.map((c, i) => (
+              <Stack key={`c-${i}`} direction="row" justifyContent="space-between" spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  {c}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  —
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+
+        <Divider sx={{ my: 1.5 }} />
+        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            Porcija: {portionCount}
+          </Typography>
+        </Stack>
+        <Stack direction="row" justifyContent="space-between">
+          <Typography sx={{ fontWeight: 700 }}>Ukupno</Typography>
+          <Typography sx={{ fontWeight: 700 }}>
+            {total.toLocaleString('sr-RS')} RSD
+          </Typography>
+        </Stack>
+
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          sx={{ mt: 2 }}
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? 'Čuvanje…' : 'Sačuvaj porudžbinu'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MealItem({
   meal,
-  checked,
+  qty,
   count,
   note,
   disabled,
   onToggle,
+  onQty,
   onNote,
 }: {
   meal: Meal;
-  checked: boolean;
+  qty: number;
   count: number;
   note: string;
   disabled: boolean;
   onToggle: () => void;
+  onQty: (q: number) => void;
   onNote: (v: string) => void;
 }) {
+  const checked = qty > 0;
   return (
     <Card
       sx={{
@@ -504,15 +651,42 @@ function MealItem({
             </Stack>
 
             {checked && (
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Dodatak / napomena (npr. bez luka, duplo meso)"
-                value={note}
-                disabled={disabled}
-                onChange={(e) => onNote(e.target.value)}
-                sx={{ mt: 1 }}
-              />
+              <Box sx={{ mt: 1 }}>
+                {/* Količina */}
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Količina:
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    aria-label="Smanji"
+                    disabled={disabled}
+                    onClick={() => onQty(qty - 1)}
+                  >
+                    <RemoveIcon fontSize="small" />
+                  </IconButton>
+                  <Typography sx={{ minWidth: 24, textAlign: 'center', fontWeight: 700 }}>
+                    {qty}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    aria-label="Povećaj"
+                    disabled={disabled}
+                    onClick={() => onQty(qty + 1)}
+                  >
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Dodatak / napomena (npr. bez luka, duplo meso)"
+                  value={note}
+                  disabled={disabled}
+                  onChange={(e) => onNote(e.target.value)}
+                />
+              </Box>
             )}
           </Box>
         </Stack>

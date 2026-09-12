@@ -69,6 +69,7 @@ export const orders = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     mealId: integer('meal_id').references(() => meals.id, { onDelete: 'cascade' }),
+    quantity: integer('quantity').notNull().default(1), // broj porcija istog jela
     date: date('date').notNull(), // datum za koji se poručuje (radni dan)
     customText: text('custom_text'), // sopstvena porudžbina
     note: text('note'), // dodatak / napomena uz izabrano jelo

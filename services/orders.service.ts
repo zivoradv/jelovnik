@@ -7,6 +7,7 @@ export interface OrderItemInput {
   mealId?: number | null;
   customText?: string | null;
   note?: string | null;
+  quantity?: number | null;
 }
 
 // Sve stavke koje je korisnik izabrao za dati datum.
@@ -32,6 +33,8 @@ export async function saveUserOrders(
       mealId: it.mealId ?? null,
       customText: it.customText?.trim() || null,
       note: it.note?.trim() || null,
+      // količina: najmanje 1, najviše 99 (zaštita od besmislenih vrednosti)
+      quantity: Math.min(99, Math.max(1, Math.round(Number(it.quantity) || 1))),
     }))
     // preskoči prazne redove (bez jela i bez sopstvenog teksta)
     .filter((it) => it.mealId !== null || it.customText !== null);
@@ -51,6 +54,7 @@ export async function saveUserOrders(
     mealId: it.mealId,
     customText: it.customText,
     note: it.note,
+    quantity: it.quantity,
   }));
 
   const ins = db.insert(orders).values(values).returning();
@@ -67,7 +71,7 @@ export async function getCountsForDate(
   const rows = await db
     .select({
       mealId: orders.mealId,
-      count: sql<number>`count(*)::int`,
+      count: sql<number>`COALESCE(SUM(${orders.quantity}), 0)::int`,
     })
     .from(orders)
     .where(and(eq(orders.date, dateStr), isNotNull(orders.mealId)))
@@ -89,6 +93,7 @@ export interface OrderDetailRow {
   price: string | null;
   customText: string | null;
   note: string | null;
+  quantity: number;
 }
 
 export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDetailRow[]> {
@@ -103,6 +108,7 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
       price: meals.price,
       customText: orders.customText,
       note: orders.note,
+      quantity: orders.quantity,
     })
     .from(orders)
     .innerJoin(users, eq(orders.userId, users.id))
@@ -126,9 +132,9 @@ export async function getUserBalance(userId: number): Promise<DebtRow[]> {
   const rows = await db
     .select({
       date: orders.date,
-      total: sql<number>`COALESCE(SUM(${meals.price}), 0)::float`,
-      mealCount: sql<number>`COUNT(${orders.mealId})::int`,
-      customCount: sql<number>`COUNT(*) FILTER (WHERE ${orders.mealId} IS NULL)::int`,
+      total: sql<number>`COALESCE(SUM(${meals.price} * ${orders.quantity}), 0)::float`,
+      mealCount: sql<number>`COALESCE(SUM(${orders.quantity}) FILTER (WHERE ${orders.mealId} IS NOT NULL), 0)::int`,
+      customCount: sql<number>`COALESCE(SUM(${orders.quantity}) FILTER (WHERE ${orders.mealId} IS NULL), 0)::int`,
       paid: sql<boolean>`COALESCE(BOOL_OR(${payments.paid}), false)`,
     })
     .from(orders)
