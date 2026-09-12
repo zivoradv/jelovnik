@@ -12,7 +12,7 @@ type SeedMeal = {
   isPosno?: boolean;
 };
 
-// Meni preuzet iz PDF-a "Domaći kutak FAN".
+// Meni preuzet iz PDF-a "Jelovnik FAN".
 const KUVANA: SeedMeal[] = [
   // Ponedeljak
   { name: 'Pljeskavica i pire krompir', price: '500', day: 1, category: 'kuvano' },

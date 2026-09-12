@@ -38,6 +38,9 @@ export default function NavBar() {
             <Button color="inherit" component={Link} href="/">
               Meni
             </Button>
+            <Button color="inherit" component={Link} href="/dug">
+              Moj dug
+            </Button>
             {user.role === 'admin' && (
               <Button color="inherit" component={Link} href="/admin">
                 Administracija

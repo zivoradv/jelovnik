@@ -2,7 +2,7 @@
 
 import { createTheme } from '@mui/material/styles';
 
-// Boje inspirisane logotipom "Domaći kutak FAN" (topla crvena / bordo).
+// Boje inspirisane logotipom "Jelovnik FAN" (topla crvena / bordo).
 const theme = createTheme({
   cssVariables: {
     colorSchemeSelector: 'class',

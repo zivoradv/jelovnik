@@ -1,8 +1,8 @@
 {
-  "name": "domaci-kutak",
+  "name": "jelovnik",
   "version": "1.0.0",
   "private": true,
-  "description": "Aplikacija za naručivanje obroka - Domaći kutak FAN",
+  "description": "Aplikacija za naručivanje obroka - Jelovnik FAN",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

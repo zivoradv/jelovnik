@@ -9,6 +9,7 @@ import {
   numeric,
   pgEnum,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -94,7 +95,23 @@ export const ordersRelations = relations(orders, ({ one }) => ({
   meal: one(meals, { fields: [orders.mealId], references: [meals.id] }),
 }));
 
-// --- Tipovi --------------------------------------------------------------
+export const payments = pgTable(
+  'payments',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    date: date('date').notNull(), // datum na koji se plaćanje odnosi
+    paid: boolean('paid').notNull().default(false),
+    paidAt: timestamp('paid_at'), // kada je označeno kao plaćeno
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // najviše jedan red po korisniku i datumu
+    userDateUidx: uniqueIndex('payments_user_date_uidx').on(t.userId, t.date),
+  }),
+);
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -102,3 +119,5 @@ export type Meal = typeof meals.$inferSelect;
 export type NewMeal = typeof meals.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
+export type Payment = typeof payments.$inferSelect;
+export type NewPayment = typeof payments.$inferInsert;

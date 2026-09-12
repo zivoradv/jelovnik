@@ -5,7 +5,7 @@ import Providers from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Domaći kutak — naručivanje obroka',
+  title: 'Jelovnik — naručivanje obroka',
   description: 'Aplikacija za naručivanje dnevnih obroka.',
 };
 

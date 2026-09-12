@@ -1,5 +1,5 @@
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
-import { db, orders, users, meals, Order } from '@/drizzle';
+import { and, asc, desc, eq, isNotNull, sql } from 'drizzle-orm';
+import { db, orders, users, meals, payments, Order } from '@/drizzle';
 import { fromISODate } from '@/lib/date';
 import { isWorkday } from '@/lib/constants';
 
@@ -109,4 +109,58 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
     .leftJoin(meals, eq(orders.mealId, meals.id))
     .where(eq(orders.date, dateStr))
     .orderBy(asc(meals.name), asc(users.username));
+}
+
+// --- Dug / plaćanja ------------------------------------------------------
+
+// Pregled duga jednog korisnika, grupisano po datumu.
+export interface DebtRow {
+  date: string; // 'YYYY-MM-DD'
+  total: number; // zbir cena naručenih jela (RSD) za taj dan
+  mealCount: number; // broj jela iz menija (imaju cenu)
+  customCount: number; // broj sopstvenih porudžbina (bez cene)
+  paid: boolean; // da li je taj dan označen kao plaćen
+}
+
+export async function getUserBalance(userId: number): Promise<DebtRow[]> {
+  const rows = await db
+    .select({
+      date: orders.date,
+      total: sql<number>`COALESCE(SUM(${meals.price}), 0)::float`,
+      mealCount: sql<number>`COUNT(${orders.mealId})::int`,
+      customCount: sql<number>`COUNT(*) FILTER (WHERE ${orders.mealId} IS NULL)::int`,
+      paid: sql<boolean>`COALESCE(BOOL_OR(${payments.paid}), false)`,
+    })
+    .from(orders)
+    .leftJoin(meals, eq(orders.mealId, meals.id))
+    .leftJoin(
+      payments,
+      and(eq(payments.userId, orders.userId), eq(payments.date, orders.date)),
+    )
+    .where(eq(orders.userId, userId))
+    .groupBy(orders.date)
+    .orderBy(desc(orders.date));
+
+  return rows.map((r) => ({
+    date: r.date,
+    total: Number(r.total) || 0,
+    mealCount: r.mealCount,
+    customCount: r.customCount,
+    paid: r.paid,
+  }));
+}
+
+// Označi (ili skini oznaku) da je dug za dati datum plaćen.
+export async function setPaid(
+  userId: number,
+  dateStr: string,
+  paid: boolean,
+): Promise<void> {
+  await db
+    .insert(payments)
+    .values({ userId, date: dateStr, paid, paidAt: paid ? new Date() : null })
+    .onConflictDoUpdate({
+      target: [payments.userId, payments.date],
+      set: { paid, paidAt: paid ? new Date() : null },
+    });
 }

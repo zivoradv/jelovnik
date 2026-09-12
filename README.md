@@ -1,4 +1,4 @@
-# Domaći kutak — aplikacija za naručivanje obroka
+# Jelovnik — aplikacija za naručivanje obroka
 
 Jednostavna web aplikacija koja zamenjuje naručivanje obroka preko Viber grupe.
 Administratori unose dnevni meni (šta se jede kog dana), a korisnici biraju

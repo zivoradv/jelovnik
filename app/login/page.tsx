@@ -59,7 +59,7 @@ function LoginForm() {
       <Paper sx={{ p: 4, width: '100%', maxWidth: 400 }} elevation={0} variant="outlined">
         <Stack spacing={1} alignItems="center" sx={{ mb: 3 }}>
           <RestaurantMenuIcon color="primary" sx={{ fontSize: 40 }} />
-          <Typography variant="h5">Domaći kutak</Typography>
+          <Typography variant="h5">Jelovnik</Typography>
           <Typography variant="body2" color="text.secondary">
             Prijavite se da naručite obrok
           </Typography>
