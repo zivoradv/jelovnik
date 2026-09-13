@@ -45,9 +45,9 @@ const DAY_TAGLINES: Record<number, readonly string[]> = {
     0: ['Nedelja. Aha znaci sada volimo ponedeljke? Posto uzimamo has i to, mislim, has je nesto cemu se radujemo? Pauziracu se sad ovde.'],
 }
 
-export function greeting(name: string, now = new Date()): { title: string; tagline: string } {
+export function greeting(name: string, now = new Date(), shift = 0): { title: string; tagline: string } {
     const h = now.getHours()
-    const seed = now.getDate() + now.getMonth() * 31
+    const seed = now.getDate() + now.getMonth() * 31 + shift
     const pool = h < 5 ? NIGHT : h < 10 ? MORNING : h < 14 ? NOON : h < 19 ? AFTERNOON : EVENING
     return {
         title: pick(pool, seed).replace('{name}', name),
@@ -92,14 +92,15 @@ export function quantityReaction(qty: number): string | null {
 const CUSTOM_REACTIONS: [RegExp, string][] = [
     [/pic[ae]|pizza/i, 'Pica? Ambiciozno. Držimo palčeve.'],
     [/burek/i, 'Burek — ozbiljan izbor za ozbiljne ljude.'],
-    [/salat/i, 'Salata. Neko pazi na liniju. Poštujemo.'],
-    [/^\s*ni[šs]ta\s*$/i, 'Ništa? To se ne naručuje, to se doživljava.'],
+    [/salat/i, 'Salata. Neko pazi na liniju. Respek.'],
+    [/^\s*ni[šs]ta\s*$/i, 'Ništa? To se ne naručuje >:C'],
     [/pivo|rakij|vino/i, 'To ćemo se praviti da nismo videli.'],
-    [/kaf[aeu]/i, 'Kafa ide uz sve, ali nije ručak.'],
+    [/kaf[aeu]/i, 'aaa stara dobra kafica, mozda da probas u kuhinji to? kafa nije rucak tho'],
     [/sarm/i, 'Sarma van petka? Buntovnik.'],
-    [/su[šs]i|sushi/i, 'Suši iz domaće kuhinje. Hrabro.'],
-    [/[čc]evap/i, 'Ćevapi. Klasik. Nema rasprave.'],
+    [/su[šs]i|sushi/i, 'Suši iz domaće kuhinje, pa da.'],
+    [/[čc]evap/i, 'Ćevapi. Klasika, volim..'],
     [/sladoled|tort|kola[čc]/i, 'Prvo ručak, pa slatko. Ili ne, tvoj dan.'],
+    [/djuvec/i, `NEDOSTAJE MI DJUVEC KOD CURETA </3`],
 ]
 
 export function customTextReaction(text: string): string | null {
@@ -123,4 +124,15 @@ export const NOT_FOUND_MESSAGES = [
     'Ova stranica je pojedena.',
     'Ovde nema ničega. Kao u frižideru u petak uveče.',
     'Stranica je otišla na pauzu za ručak i nije se vratila.',
+] as const
+
+export const CONSOLE_BANNER = [
+    '%c🍲 Jelovnik %c— ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.',
+    'font-size:18px;font-weight:700;color:#A82B24',
+    'font-size:12px;color:#827466',
+] as const
+
+export const CONSOLE_PS = [
+    '%cP.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu — on zna šta si naručio.',
+    'font-size:12px;font-style:italic;color:#C77C22',
 ] as const

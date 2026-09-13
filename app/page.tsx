@@ -9,6 +9,7 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import EditNoteIcon from '@mui/icons-material/EditNote'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import RemoveIcon from '@mui/icons-material/Remove'
 import SoupKitchenIcon from '@mui/icons-material/SoupKitchen'
 import {
@@ -88,6 +89,7 @@ export default function HomePage() {
     const [error, setError] = useState('')
     const [savedMessage, setSavedMessage] = useState<string | null>(null)
     const [badges, setBadges] = useState<Badge[]>([])
+    const [helloShift, setHelloShift] = useState(0)
 
     const [quantities, setQuantities] = useState<Record<number, number>>({})
     const [notes, setNotes] = useState<Record<number, string>>({})
@@ -254,15 +256,25 @@ export default function HomePage() {
     const todayIso = toISODate(todayMidnight())
     const onStartingDay = selectedDate === toISODate(initialDate)
     const selectedDayName = WEEKDAYS.find((w) => w.value === selDateObj.getDay())?.label ?? ''
-    const hello = greeting(user.username)
+    const hello = greeting(user.username, new Date(), helloShift)
     const earned = badges.filter((b) => b.earned)
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
             <Box>
-                <Typography variant="h4" sx={{ mb: 0.5 }}>
-                    {hello.title}
-                </Typography>
+                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mb: 0.5 }}>
+                    <Typography variant="h4">{hello.title}</Typography>
+                    <Tooltip title="Promešaj pozdrav">
+                        <IconButton
+                            size="small"
+                            aria-label="Promešaj pozdrav"
+                            onClick={() => setHelloShift((s) => s + 1)}
+                            sx={{ opacity: 0.2, transition: 'opacity 150ms', '&:hover, &:focus-visible': { opacity: 1 } }}
+                        >
+                            <RefreshIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
                 <Typography variant="body1" color="text.secondary">
                     {hello.tagline}
                 </Typography>

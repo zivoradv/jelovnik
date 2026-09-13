@@ -3,7 +3,7 @@
 import Alert from '@mui/material/Alert'
 import Snackbar from '@mui/material/Snackbar'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { KONAMI_MESSAGE } from '@/lib/fun'
+import { CONSOLE_BANNER, CONSOLE_PS, KONAMI_MESSAGE } from '@/lib/fun'
 
 type ConfettiKind = 'burst' | 'storm'
 
@@ -113,6 +113,11 @@ export function FunProvider({ children }: { children: ReactNode }) {
         toast(next ? 'Kafanski mod uključen. Konobar, jelovnik!' : 'Kafanski mod isključen. Nazad u kancelariju.')
         if (next) confetti('burst')
     }, [kafana, applyKafana, toast, confetti])
+
+    useEffect(() => {
+        console.log(...CONSOLE_BANNER)
+        console.log(...CONSOLE_PS)
+    }, [])
 
     useEffect(() => {
         try {
