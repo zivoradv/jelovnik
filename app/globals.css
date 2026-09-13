@@ -1,76 +1,72 @@
 html,
 body {
-  padding: 0;
-  margin: 0;
+    padding: 0;
+    margin: 0;
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 a {
-  color: inherit;
+    color: inherit;
 }
 
-/* Glatko skrolovanje kada se menja dan / sekcija. */
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    html {
+        scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
-/* Topla selekcija teksta umesto podrazumevane plave. */
 ::selection {
-  background: rgba(168, 43, 36, 0.18);
+    background: rgba(168, 43, 36, 0.18);
 }
 
-.mui-dark ::selection {
-  background: rgba(232, 155, 149, 0.26);
+.dark ::selection {
+    background: rgba(232, 155, 149, 0.26);
 }
 
-/* Diskretan, topao skrol bar. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(130, 116, 102, 0.45) transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(130, 116, 102, 0.45) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 *::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(130, 116, 102, 0.35);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
+    background-color: rgba(130, 116, 102, 0.35);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(130, 116, 102, 0.55);
+    background-color: rgba(130, 116, 102, 0.55);
 }
 
-/* Vidljiv fokus samo pri navigaciji tastaturom. */
 :focus-visible {
-  outline: 2px solid rgba(168, 43, 36, 0.6);
-  outline-offset: 2px;
+    outline: 2px solid rgba(168, 43, 36, 0.6);
+    outline-offset: 2px;
 }
 
-.mui-dark :focus-visible {
-  outline-color: rgba(232, 155, 149, 0.7);
+.dark :focus-visible {
+    outline-color: rgba(232, 155, 149, 0.7);
 }

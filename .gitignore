@@ -34,3 +34,6 @@ yarn-error.log*
 # ide
 .vscode/
 .idea/
+
+# next 16 dev output
+/.next/dev

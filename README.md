@@ -25,9 +25,9 @@ Napravljeno sa **Next.js + TypeScript + React + MUI**, baza preko **Drizzle ORM*
 
 | Sloj        | Alat                                             |
 | ----------- | ------------------------------------------------ |
-| Framework   | Next.js 14 (App Router)                           |
+| Framework   | Next.js 16 (App Router)                           |
 | Jezik       | TypeScript                                        |
-| UI          | React + MUI (Material UI) v6                      |
+| UI          | React 19 + MUI (Material UI) v9                   |
 | Baza        | PostgreSQL (Neon / Supabase / Vercel Postgres…)  |
 | ORM         | Drizzle                                           |
 | Autorizacija| JWT (`jose`) + bcrypt (`bcryptjs`)               |
@@ -43,7 +43,7 @@ app/             # frontend (App Router) + API rute
   components/    #   deljene komponente (NavBar, ThemeToggle)
   admin/         #   administratorske stranice
 scripts/seed.ts  # početni podaci (admin + meni iz PDF-a)
-middleware.ts    # provera JWT tokena na svakoj ruti
+proxy.ts         # provera JWT tokena na svakoj ruti
 ```
 
 ## Besplatna baza (preporuka)
