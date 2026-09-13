@@ -127,7 +127,7 @@ export const NOT_FOUND_MESSAGES = [
 ] as const
 
 export const CONSOLE_BANNER = [
-    '%c🍲 Jelovnik %c— ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.',
+    'ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.',
     'font-size:18px;font-weight:700;color:#A82B24',
     'font-size:12px;color:#827466',
 ] as const
