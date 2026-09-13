@@ -1,5 +1,6 @@
 'use client'
 
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import GroupIcon from '@mui/icons-material/Group'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
@@ -9,9 +10,10 @@ import { Suspense, useEffect, useState } from 'react'
 import { useAuth } from '../auth-context'
 import MealsAdmin from './MealsAdmin'
 import OrdersAdmin from './OrdersAdmin'
+import StatsAdmin from './StatsAdmin'
 import UsersAdmin from './UsersAdmin'
 
-const TABS = ['jela', 'porudzbine', 'korisnici'] as const
+const TABS = ['jela', 'porudzbine', 'korisnici', 'statistika'] as const
 
 export default function AdminPage() {
     return (
@@ -67,6 +69,7 @@ function AdminInner() {
                     <Tab icon={<RestaurantMenuIcon />} iconPosition="start" label="Jela" />
                     <Tab icon={<ListAltIcon />} iconPosition="start" label="Porudžbine" />
                     <Tab icon={<GroupIcon />} iconPosition="start" label="Korisnici" />
+                    <Tab icon={<EmojiEventsIcon />} iconPosition="start" label="Statistika" />
                 </Tabs>
             </Card>
 
@@ -74,6 +77,7 @@ function AdminInner() {
                 {tab === 0 && <MealsAdmin />}
                 {tab === 1 && <OrdersAdmin />}
                 {tab === 2 && <UsersAdmin />}
+                {tab === 3 && <StatsAdmin />}
             </Box>
         </Stack>
     )

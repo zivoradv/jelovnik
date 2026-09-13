@@ -26,8 +26,9 @@ import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { useAuth } from '../auth-context'
+import { useFun } from '../fun-context'
 import BrandMark from './BrandMark'
 import ThemeToggle from './ThemeToggle'
 
@@ -60,6 +61,8 @@ export default function NavBar() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const { toggleKafana } = useFun()
+    const logoClicks = useRef<number[]>([])
 
     if (pathname === '/login' || pathname === '/register') {
         return null
@@ -76,6 +79,15 @@ export default function NavBar() {
 
     const items = NAV_ITEMS.filter((i) => !i.adminOnly || user?.role === 'admin')
     const initial = user?.username?.[0]?.toUpperCase() ?? '?'
+
+    function onLogoClick() {
+        const now = Date.now()
+        logoClicks.current = [...logoClicks.current.filter((t) => now - t < 3000), now]
+        if (logoClicks.current.length >= 7) {
+            logoClicks.current = []
+            toggleKafana()
+        }
+    }
 
     return (
         <>
@@ -105,6 +117,7 @@ export default function NavBar() {
                                 mr: 1,
                             }}
                             aria-label="Početna"
+                            onClick={onLogoClick}
                         >
                             <BrandMark />
                         </Box>

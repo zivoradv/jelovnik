@@ -70,3 +70,20 @@ html {
 .dark :focus-visible {
     outline-color: rgba(232, 155, 149, 0.7);
 }
+
+html.kafana body {
+    filter: sepia(0.45) saturate(1.15) contrast(1.05);
+}
+
+html.kafana body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1999;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(60, 30, 10, 0.35) 100%);
+}
+
+html.kafana * {
+    font-style: italic;
+}

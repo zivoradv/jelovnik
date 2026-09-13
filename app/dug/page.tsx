@@ -5,7 +5,9 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import { Alert, Box, Card, CardContent, Checkbox, Chip, Divider, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { formatDateLong, fromISODate } from '@/lib/date'
+import { debtRoast } from '@/lib/fun'
 
 interface DebtRow {
     date: string
@@ -24,13 +26,15 @@ export default function DugPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [saving, setSaving] = useState<string | null>(null)
+    const [badges, setBadges] = useState<Badge[]>([])
 
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await fetch('/api/payments')
-            const data = await res.json()
-            setRows(data.rows || [])
+            const [paymentsRes, statsRes] = await Promise.all([fetch('/api/payments'), fetch('/api/stats/me')])
+            const [payments, stats] = await Promise.all([paymentsRes.json(), statsRes.json()])
+            setRows(payments.rows || [])
+            if (stats.stats) setBadges(computeBadges(stats.stats as UserStats))
         } finally {
             setLoading(false)
         }
@@ -149,6 +153,10 @@ export default function DugPage() {
                         </Stack>
                         <Typography sx={{ fontWeight: 600, color: 'success.main' }}>{rsd(paidTotal)}</Typography>
                     </Stack>
+
+                    <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
+                        {debtRoast(unpaidTotal, unpaidCount)}
+                    </Typography>
                 </CardContent>
             </Card>
 
@@ -235,11 +243,55 @@ export default function DugPage() {
                 </Stack>
             )}
 
+            {badges.length > 0 && <BadgesCard badges={badges} />}
+
             {rows.some((r) => r.customCount > 0) && (
                 <Alert severity="info">
                     Sopstvene porudžbine nemaju cenu u meniju, pa nisu uračunate u iznos. Njih dogovorite zasebno.
                 </Alert>
             )}
         </Stack>
+    )
+}
+
+function BadgesCard({ badges }: { badges: Badge[] }) {
+    const earned = badges.filter((b) => b.earned).length
+    return (
+        <Card>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 2 }}>
+                    <Typography variant="h6">Tvoje zasluge</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {earned} / {badges.length}
+                    </Typography>
+                </Stack>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
+                    {badges.map((b) => (
+                        <Stack
+                            key={b.id}
+                            direction="row"
+                            spacing={1.5}
+                            sx={(t) => ({
+                                p: 1.5,
+                                borderRadius: 2.5,
+                                border: '1.5px solid',
+                                borderColor: b.earned ? 'primary.light' : t.vars.palette.divider,
+                                opacity: b.earned ? 1 : 0.5,
+                                filter: b.earned ? 'none' : 'grayscale(1)',
+                                alignItems: 'center',
+                            })}
+                        >
+                            <Typography sx={{ fontSize: 28, lineHeight: 1 }}>{b.emoji}</Typography>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 600, lineHeight: 1.3 }}>{b.title}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {b.description}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    ))}
+                </Box>
+            </CardContent>
+        </Card>
     )
 }

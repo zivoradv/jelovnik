@@ -30,9 +30,12 @@ import {
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
+import { customTextReaction, EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
 import { useAuth } from './auth-context'
+import { useFun } from './fun-context'
 
 interface Meal {
     id: number
@@ -65,6 +68,7 @@ function rsd(n: number) {
 
 export default function HomePage() {
     const { user, loading: authLoading } = useAuth()
+    const { confetti } = useFun()
 
     const initialDate = useMemo(() => {
         const t = todayMidnight()
@@ -82,7 +86,8 @@ export default function HomePage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
-    const [savedOpen, setSavedOpen] = useState(false)
+    const [savedMessage, setSavedMessage] = useState<string | null>(null)
+    const [badges, setBadges] = useState<Badge[]>([])
 
     const [quantities, setQuantities] = useState<Record<number, number>>({})
     const [notes, setNotes] = useState<Record<number, string>>({})
@@ -131,9 +136,21 @@ export default function HomePage() {
         }
     }, [])
 
+    const loadBadges = useCallback(async () => {
+        try {
+            const res = await fetch('/api/stats/me')
+            const data = await res.json()
+            if (data.stats) setBadges(computeBadges(data.stats as UserStats))
+        } catch {}
+    }, [])
+
     useEffect(() => {
         if (user) loadDay(selectedDate)
     }, [user, selectedDate, loadDay])
+
+    useEffect(() => {
+        if (user) loadBadges()
+    }, [user, loadBadges])
 
     function toggleMeal(id: number) {
         setQuantities((prev) => {
@@ -193,8 +210,9 @@ export default function HomePage() {
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju.')
-            setSavedOpen(true)
-            await loadDay(selectedDate)
+            setSavedMessage(randomOf(SAVE_MESSAGES))
+            if (items.length > 0) confetti('burst')
+            await Promise.all([loadDay(selectedDate), loadBadges()])
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Greška pri čuvanju.')
         } finally {
@@ -236,16 +254,27 @@ export default function HomePage() {
     const todayIso = toISODate(todayMidnight())
     const onStartingDay = selectedDate === toISODate(initialDate)
     const selectedDayName = WEEKDAYS.find((w) => w.value === selDateObj.getDay())?.label ?? ''
+    const hello = greeting(user.username)
+    const earned = badges.filter((b) => b.earned)
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
             <Box>
                 <Typography variant="h4" sx={{ mb: 0.5 }}>
-                    What's up, {user.username}
+                    {hello.title}
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                    Izaberi obrok. Možeš izabrati više jela, promeniti količinu, dodati napomenu ili upisati nešto svoje.
+                    {hello.tagline}
                 </Typography>
+                {earned.length > 0 && (
+                    <Stack direction="row" spacing={0.75} useFlexGap sx={{ mt: 1.5, flexWrap: 'wrap' }}>
+                        {earned.map((b) => (
+                            <Tooltip key={b.id} title={b.description}>
+                                <Chip size="small" variant="outlined" label={`${b.emoji} ${b.title}`} />
+                            </Tooltip>
+                        ))}
+                    </Stack>
+                )}
             </Box>
 
             <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
@@ -388,13 +417,14 @@ export default function HomePage() {
                                 </Typography>
                                 <Stack spacing={1.25}>
                                     {customItems.map((val, idx) => (
-                                        <Stack direction="row" spacing={1} key={idx}>
+                                        <Stack direction="row" spacing={1} key={idx} sx={{ alignItems: 'flex-start' }}>
                                             <TextField
                                                 fullWidth
                                                 size="small"
                                                 placeholder="npr. Grčka salata bez luka"
                                                 value={val}
                                                 disabled={isPast}
+                                                helperText={customTextReaction(val)}
                                                 onChange={(e) =>
                                                     setCustomItems((items) => items.map((v, i) => (i === idx ? e.target.value : v)))
                                                 }
@@ -487,13 +517,13 @@ export default function HomePage() {
             )}
 
             <Snackbar
-                open={savedOpen}
-                autoHideDuration={2500}
-                onClose={() => setSavedOpen(false)}
+                open={savedMessage !== null}
+                autoHideDuration={3000}
+                onClose={() => setSavedMessage(null)}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert severity="success" variant="filled" onClose={() => setSavedOpen(false)}>
-                    Porudžbina je sačuvana.
+                <Alert severity="success" variant="filled" onClose={() => setSavedMessage(null)}>
+                    {savedMessage}
                 </Alert>
             </Snackbar>
         </Stack>
@@ -517,9 +547,12 @@ function Section({ title, count, icon, children }: { title: string; count?: numb
 }
 
 function MenuSkeleton() {
+    const message = useMemo(() => randomOf(LOADING_MESSAGES), [])
     return (
         <Stack spacing={1.5}>
-            <Skeleton variant="text" width={140} height={28} />
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                {message}
+            </Typography>
             {[0, 1, 2].map((i) => (
                 <Skeleton key={i} variant="rounded" height={92} />
             ))}
@@ -528,14 +561,15 @@ function MenuSkeleton() {
 }
 
 function EmptyMenu({ dayName }: { dayName: string }) {
+    const message = useMemo(() => randomOf(EMPTY_MENU_MESSAGES), [])
     return (
         <Card sx={{ py: 6, px: 3, textAlign: 'center' }}>
             <SoupKitchenIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
             <Typography variant="h6" sx={{ mb: 0.5 }}>
-                Meni još nije unet
+                Meni za {dayName ? dayName.toLowerCase() : 'ovaj dan'} još nije unet
             </Typography>
             <Typography variant="body2" color="text.secondary">
-                Za {dayName ? dayName.toLowerCase() : 'ovaj dan'} još nema jela. Probaj kasnije ili izaberi drugi dan.
+                {message}
             </Typography>
         </Card>
     )
@@ -658,6 +692,7 @@ function MealItem({
 }) {
     const checked = qty > 0
     const price = Number(meal.price) || 0
+    const reaction = quantityReaction(qty)
 
     return (
         <Card
@@ -805,6 +840,11 @@ function MealItem({
                             onChange={(e) => onNote(e.target.value)}
                         />
                     </Stack>
+                    {reaction && (
+                        <Typography variant="caption" color="secondary.dark" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
+                            {reaction}
+                        </Typography>
+                    )}
                 </Box>
             )}
         </Card>

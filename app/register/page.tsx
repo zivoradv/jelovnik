@@ -73,7 +73,7 @@ export default function RegisterPage() {
                         Napravite nalog
                     </Typography>
                     <Typography variant="body2" color="text.secondary" align="center">
-                        Par sekundi i možete naručiti prvi obrok
+                        First time for everything, ey?
                     </Typography>
                 </Stack>
 
