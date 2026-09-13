@@ -22,57 +22,49 @@ const MORNING = [
 ] as const
 
 const NOON = [
-    '{name}, vreme ručka! Nadamo se da si juče naručio.',
-    'Podne je, {name}. Ako nisi naručio, sad je kasno - ali za sutra nije.',
-    'Ručak je sad, {name}. Ako gledaš ovo umesto da jedeš, aplikacija ti je zanimljivija od hrane. Hvala. Bas cenite developere??',
-    'Podne, {name}. Da te pitam nešto, jesi naručio? Ne moraš da odgovoriš, ja već znam.',
+    'Podne je, {name}.',
+    'Ručak je sad, {name}. Ako gledaš ovo umesto da jedeš, aplikacija ti je zanimljivija od hrane. Hvala.',
     '{name}, high noon. Cigarica posle ručka??',
     'Mozda da skuvas kafu za developera??',
+    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const AFTERNOON = [
     'Poz, {name}. Sutra je novi dan, a takođe je i prekosutra.',
-    'Sve što možeš danas ostavi za sutra. - neka stara poslovica, nzm gde sam je čuo',
     'Zdravo, {name}. Danas je dan, a sutra je... novi dan.',
     'Volim osmeh tvoj baš dobro ti stoji - Toše Proeski',
     'Ćao, {name}. Si znao da je jednom kauboj ušao u restoran i pitao ko je Cile a ko Mile? Upucao je obojicu jer kod njega nema cile mile. lol. A takođe nema ni haša ako ga ne naručiš!! Tako da možda bi valjalo da pogledaš listu dole?',
     'Chuck Norris bi pojeo sve sa ovog menija',
-    'Popodne, {name}. Kafa broj tri i dilema broj jedan: šta sutra?',
-    '{name}, ovo je zlatni sat. a kad smo kod zlatnog sata?? Si ti cuo vic o zlatnoj zabi?',
+    '{name}, ovo je zlatno vrijeme narucivanja hasa. a kad smo kod zlatnog vrijemena?? Si cuo vic o zlatnoj zabi?',
     'Ako se neko naljuti na neku foru znajte da developer NIT JE LUK JEO NIT MIRISAO, kontas kao ovo je jelovnik a luk ide u hranu pa kao',
-    'Ne pitaj šta jelovnik može da uradi za tebe, pitaj šta ti možeš da naručiš sa jelovnika. - JFK, otprilike',
-    'Ćao {name}. Ako čitaš ovo, znači da ti je dosadno. Ako ti je dosadno, naruči. Ako si naručio, naruči za prekosutra.',
-    'Bio jednom jedan {name} koji nije naručio ručak.',
     'Jel znas da se otvorio KFC u BIGU???',
+    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const EVENING = [
-    'Dobro veče, {name}. Naruči za sutra pre nego što zaboraviš.',
-    '{name}, veče je jbg. Baš voliš ovu aplikaciju?',
-    'Kasno je, {name}, ali jelovnik ne spava.',
-    'Veče, {name}. Netflix može da čeka. Kuvarica ne može.',
-    'Dobro veče. Znaš onu izreku „ko se uveče smeje, ujutru je naručio”? Ne znaš jer sam je sad izmislio. Ali je tačna.',
-    '{name}, večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
+    'Dobro veče.',
+    'Veče je jbg. Baš voliš ovu aplikaciju?',
+    'Večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
+    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const NIGHT = [
-    'Još si budan, {name}? Kuvarica spava, ali meni ne.',
     '{name}, baaš voliš ovu aplikaciju?',
-    '{name}, tri je ujutru. Ne osuđujem. Samo beležim.',
-    'Noć je, {name}. Ovo je ili posvećenost ili nesanica. U oba slučaja - naruči.',
+    '{name}, tri je ujutru covjece.',
+    'Poz, {name}.',
     'Kuvarica sanja sarmu. Ti sanjaš jelovnik. Nešto se poklapa.',
-    '{name}, gde si bio u ovo doba? Ne moraš da kažeš, pitanje je retoričko, ali stomak pita.',
-    'Jedini ko je sada budan pored tebe je ovaj server. Pozdravlja te.',
+    'Jedini ko je sada budan pored tebe je ovaj server.',
+    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const DAY_TAGLINES: Record<number, readonly string[]> = {
-    1: ['Ponedeljak. kafica, cigarica, dr..uzenje?'],
+    1: ['Ponedeljak. kafica, cigarica, dr..uzenje?', 'Ponedeljak, pa utorak, pa sreda...'],
     2: ['Utorak. Utorkom bas ne mogu.'],
-    3: ['Sreda je. Pola puta do vikenda, ceo put do ručka.'],
+    3: ['Sreda je. Pola puta do vikenda.'],
     4: ['Četvrtak je skoro petak. Skoro.'],
     5: ['PETAK. Zna se šta se jede petkom.'],
     6: ['Subota, a ti gledaš jelovnik? Respect.'],
-    0: ['Nedelja. Aha znaci sada volimo ponedeljke? Posto uzimamo has i to, mislim, has je nesto cemu se radujemo? Pauziracu se sad ovde.'],
+    0: ['Nedelja'],
 }
 
 export function greeting(name: string, now = new Date(), shift = 0): { title: string; tagline: string } {
@@ -111,8 +103,9 @@ export const SAVE_MESSAGES = [
 ] as const
 
 export function quantityReaction(qty: number): string | null {
-    if (qty >= 99) return '99. Maksimum. Legenda.'
+    if (qty >= 99) return '99. Maksimum. Legendoo.'
     if (qty >= 50) return 'Kuvarica je već obaveštena. I malo uplašena.'
+    if (qty >= 15) return 'Okej, sad si preterao druskane.'
     if (qty >= 10) return 'Ovo više nije ručak, ovo je ketering.'
     if (qty >= 5) return `${qty} porcija? Hraniš celu kancelariju?`
     if (qty >= 3) return 'Gladan dan, a?'

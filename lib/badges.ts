@@ -50,9 +50,9 @@ export function computeBadges(s: UserStats): Badge[] {
             earned: !!fav && fav.count >= 5,
         },
         {
-            id: 'gladnik',
+            id: 'najgladniji',
             emoji: '🐗',
-            title: 'Gladnik',
+            title: 'Najgladniji',
             description: '3 ili više porcija u jednom danu.',
             earned: s.maxPortionsInDay >= 3,
         },
@@ -64,9 +64,9 @@ export function computeBadges(s: UserStats): Badge[] {
             earned: s.posnoCount >= 5,
         },
         {
-            id: 'improvizator',
+            id: 'virtuoz',
             emoji: '🎨',
-            title: 'Improvizator',
+            title: 'Virtuoz',
             description: '3 sopstvene porudžbine. Meni ti je samo predlog.',
             earned: s.customCount >= 3,
         },

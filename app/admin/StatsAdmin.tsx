@@ -19,7 +19,7 @@ interface MonthlyStats {
 }
 
 const MEDALS = ['🥇', '🥈', '🥉']
-const TITLES = ['Gladnik meseca', 'Zamenik gladnika', 'Bronzana viljuška']
+const TITLES = ['Najgladniji', 'Zamenik Najgladnijeg', 'Bronzana viljuška']
 
 function currentMonth(): string {
     const d = new Date()
@@ -85,7 +85,12 @@ export default function StatsAdmin() {
             ) : (
                 <>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2.5 }}>
-                        <Highlight label="Gladnik meseca" value={board[0].username} detail={`${board[0].portions} porcija`} emoji="🏆" />
+                        <Highlight
+                            label="Najgladniji gospodin"
+                            value={board[0].username}
+                            detail={`${board[0].portions} porcija`}
+                            emoji="🏆"
+                        />
                         <Highlight
                             label="Jelo meseca"
                             value={stats?.topMeal?.name ?? '—'}
@@ -93,7 +98,7 @@ export default function StatsAdmin() {
                             emoji="🍲"
                         />
                         <Highlight
-                            label="Improvizator"
+                            label="Virtuoz"
                             value={stats?.improviser?.username ?? '—'}
                             detail={stats?.improviser ? `${stats.improviser.count} sopstvenih` : 'svi jedu iz menija'}
                             emoji="🎨"
