@@ -10,10 +10,14 @@ import {
   IconButton,
   TextField,
   MenuItem,
-  CircularProgress,
   Alert,
+  Avatar,
+  Chip,
+  Skeleton,
+  Tooltip,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ShieldIcon from '@mui/icons-material/Shield';
 import { useAuth } from '../auth-context';
 
 interface U {
@@ -72,15 +76,18 @@ export default function UsersAdmin() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-        <CircularProgress />
-      </Box>
+      <Stack spacing={1.25}>
+        <Skeleton variant="text" width={160} height={36} />
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} variant="rounded" height={76} />
+        ))}
+      </Stack>
     );
   }
 
   return (
     <Box>
-      <Typography variant="h6" sx={{ mb: 2 }}>
+      <Typography variant="h6" sx={{ mb: 2.5 }}>
         Korisnici ({users.length})
       </Typography>
 
@@ -90,42 +97,103 @@ export default function UsersAdmin() {
         </Alert>
       )}
 
-      <Stack spacing={1}>
-        {users.map((u) => (
-          <Card key={u.id}>
-            <CardContent sx={{ '&:last-child': { pb: 1.5 }, py: 1.5 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Typography sx={{ fontWeight: 600, flexGrow: 1 }}>
-                  {u.username}
-                  {me?.id === u.id && (
-                    <Typography component="span" variant="caption" color="text.secondary">
-                      {' '}(vi)
-                    </Typography>
-                  )}
-                </Typography>
-                <TextField
-                  select
-                  size="small"
-                  label="Uloga"
-                  value={u.role}
-                  onChange={(e) => changeRole(u.id, e.target.value as 'admin' | 'user')}
-                  sx={{ minWidth: 140 }}
+      <Stack spacing={1.25}>
+        {users.map((u) => {
+          const isMe = me?.id === u.id;
+          return (
+            <Card key={u.id} sx={{ '&:hover': { borderColor: 'primary.light' } }}>
+              <CardContent sx={{ '&:last-child': { pb: 1.75 }, py: 1.75 }}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={{ xs: 1.5, sm: 2 }}
+                  alignItems={{ xs: 'stretch', sm: 'center' }}
                 >
-                  <MenuItem value="user">Korisnik</MenuItem>
-                  <MenuItem value="admin">Administrator</MenuItem>
-                </TextField>
-                <IconButton
-                  color="error"
-                  aria-label="Obriši"
-                  disabled={me?.id === u.id}
-                  onClick={() => remove(u.id)}
-                >
-                  <DeleteOutlineIcon />
-                </IconButton>
-              </Stack>
-            </CardContent>
-          </Card>
-        ))}
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    alignItems="center"
+                    sx={{ flexGrow: 1, minWidth: 0 }}
+                  >
+                    <Avatar
+                      sx={(t) => ({
+                        width: 38,
+                        height: 38,
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        bgcolor:
+                          u.role === 'admin'
+                            ? t.vars.palette.primary.main
+                            : t.vars.palette.action.selected,
+                        color:
+                          u.role === 'admin'
+                            ? t.vars.palette.primary.contrastText
+                            : t.vars.palette.text.secondary,
+                      })}
+                    >
+                      {u.username[0]?.toUpperCase() ?? '?'}
+                    </Avatar>
+
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        alignItems="center"
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
+                        <Typography sx={{ fontWeight: 600 }} noWrap>
+                          {u.username}
+                        </Typography>
+                        {isMe && <Chip label="vi" size="small" variant="outlined" />}
+                        {u.role === 'admin' && (
+                          <Chip
+                            icon={<ShieldIcon />}
+                            label="admin"
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField
+                      select
+                      size="small"
+                      label="Uloga"
+                      value={u.role}
+                      onChange={(e) =>
+                        changeRole(u.id, e.target.value as 'admin' | 'user')
+                      }
+                      sx={{ minWidth: 150, flexGrow: { xs: 1, sm: 0 } }}
+                    >
+                      <MenuItem value="user">Korisnik</MenuItem>
+                      <MenuItem value="admin">Administrator</MenuItem>
+                    </TextField>
+
+                    <Tooltip title={isMe ? 'Ne možete obrisati sebe' : 'Obriši korisnika'}>
+                      <span>
+                        <IconButton
+                          aria-label="Obriši"
+                          disabled={isMe}
+                          onClick={() => remove(u.id)}
+                          sx={{
+                            color: 'text.secondary',
+                            '&:hover': { color: 'error.main' },
+                          }}
+                        >
+                          <DeleteOutlineIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+          );
+        })}
       </Stack>
     </Box>
   );

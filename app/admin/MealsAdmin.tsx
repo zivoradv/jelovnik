@@ -19,12 +19,14 @@ import {
   FormControlLabel,
   Switch,
   Alert,
-  CircularProgress,
   Divider,
+  Skeleton,
+  Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { WEEKDAYS, CATEGORIES } from '@/lib/constants';
 
 interface Meal {
@@ -149,15 +151,24 @@ export default function MealsAdmin() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-        <CircularProgress />
-      </Box>
+      <Stack spacing={1.5}>
+        <Skeleton variant="text" width={180} height={36} />
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} variant="rounded" height={70} />
+        ))}
+      </Stack>
     );
   }
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        spacing={2}
+        sx={{ mb: 2.5 }}
+      >
         <Typography variant="h6">Jela ({meals.length})</Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
           Novo jelo
@@ -172,68 +183,70 @@ export default function MealsAdmin() {
 
       <Stack spacing={3}>
         {grouped.map((g) => (
-          <Box key={g.label}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              {g.label}
-            </Typography>
+          <DaySection key={g.label} label={g.label} count={g.meals.length}>
             {g.meals.length === 0 ? (
-              <Typography variant="body2" color="text.disabled">
-                Nema jela za ovaj dan.
-              </Typography>
+              <EmptyHint text="Nema jela za ovaj dan." />
             ) : (
               <Stack spacing={1}>
                 {g.meals.map((m) => (
-                  <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
+                  <MealRow
+                    key={m.id}
+                    meal={m}
+                    onEdit={() => openEdit(m)}
+                    onDelete={() => remove(m.id)}
+                  />
                 ))}
               </Stack>
             )}
-          </Box>
+          </DaySection>
         ))}
 
         {bezDana.length > 0 && (
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Kuvano — svaki dan
-            </Typography>
+          <DaySection label="Kuvano - svaki dan" count={bezDana.length}>
             <Stack spacing={1}>
               {bezDana.map((m) => (
-                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
+                <MealRow
+                  key={m.id}
+                  meal={m}
+                  onEdit={() => openEdit(m)}
+                  onDelete={() => remove(m.id)}
+                />
               ))}
             </Stack>
-          </Box>
+          </DaySection>
         )}
 
-        <Divider />
-
-        <Box>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Suvi obrok (dostupno svaki dan)
-          </Typography>
+        <DaySection label="Suvi obrok (dostupno svaki dan)" count={suva.length}>
           {suva.length === 0 ? (
-            <Typography variant="body2" color="text.disabled">
-              Nema unetih stavki.
-            </Typography>
+            <EmptyHint text="Nema unetih stavki." />
           ) : (
             <Stack spacing={1}>
               {suva.map((m) => (
-                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
+                <MealRow
+                  key={m.id}
+                  meal={m}
+                  onEdit={() => openEdit(m)}
+                  onDelete={() => remove(m.id)}
+                />
               ))}
             </Stack>
           )}
-        </Box>
+        </DaySection>
       </Stack>
 
       {/* Dijalog za dodavanje/izmenu */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{editingId ? 'Izmena jela' : 'Novo jelo'}</DialogTitle>
+        <Divider />
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
+          <Stack spacing={2.25} sx={{ mt: 1 }}>
             <TextField
               label="Naziv jela"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
               fullWidth
+              autoFocus
             />
             <TextField
               label="Opis / sastojci"
@@ -248,9 +261,9 @@ export default function MealsAdmin() {
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               fullWidth
-              helperText="Npr. „ograničena količina“, „sadrži gluten“, „za poneti“. Vidljivo i korisnicima."
+              helperText="Npr. ograničena količina, sadrži gluten, za poneti. Vidljivo i korisnicima."
             />
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Cena (RSD)"
                 type="number"
@@ -280,7 +293,7 @@ export default function MealsAdmin() {
               value={form.day}
               onChange={(e) => setForm({ ...form, day: e.target.value })}
               fullWidth
-              helperText="Izaberi „Svaki dan“ za suvi obrok koji nije vezan za određeni dan."
+              helperText="Izaberi Svaki dan za suvi obrok koji nije vezan za određeni dan."
             >
               <MenuItem value="">Svaki dan</MenuItem>
               {WEEKDAYS.map((wd) => (
@@ -289,7 +302,7 @@ export default function MealsAdmin() {
                 </MenuItem>
               ))}
             </TextField>
-            <Stack direction="row" spacing={2}>
+            <Stack direction="row" spacing={3}>
               <FormControlLabel
                 control={
                   <Switch
@@ -311,14 +324,60 @@ export default function MealsAdmin() {
             </Stack>
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Otkaži</Button>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setOpen(false)} color="inherit">
+            Otkaži
+          </Button>
           <Button variant="contained" onClick={save} disabled={saving || !form.name.trim()}>
-            {saving ? 'Čuvanje…' : 'Sačuvaj'}
+            {saving ? 'Čuvanje...' : 'Sačuvaj'}
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
+  );
+}
+
+function DaySection({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
+        <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1 }}>
+          {label}
+        </Typography>
+        {count > 0 && (
+          <Chip label={count} size="small" variant="outlined" sx={{ height: 20 }} />
+        )}
+        <Divider sx={{ flexGrow: 1, ml: 1 }} />
+      </Stack>
+      {children}
+    </Box>
+  );
+}
+
+function EmptyHint({ text }: { text: string }) {
+  return (
+    <Typography
+      variant="body2"
+      color="text.disabled"
+      sx={(t) => ({
+        py: 1.75,
+        px: 2,
+        border: '1.5px dashed',
+        borderColor: t.vars.palette.divider,
+        borderRadius: 2.5,
+      })}
+    >
+      {text}
+    </Typography>
   );
 }
 
@@ -332,33 +391,88 @@ function MealRow({
   onDelete: () => void;
 }) {
   return (
-    <Card sx={{ opacity: meal.active ? 1 : 0.5 }}>
-      <CardContent sx={{ '&:last-child': { pb: 1.5 }, py: 1.5 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ flexGrow: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+    <Card
+      sx={{
+        opacity: meal.active ? 1 : 0.6,
+        '&:hover': { borderColor: 'primary.light' },
+      }}
+    >
+      <CardContent sx={{ '&:last-child': { pb: 1.75 }, py: 1.75 }}>
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
+            >
               <Typography sx={{ fontWeight: 600 }}>{meal.name}</Typography>
-              {meal.isPosno && <Chip label="posno" size="small" color="success" variant="outlined" />}
-              {!meal.active && <Chip label="skriveno" size="small" />}
-              <Chip label={`${Number(meal.price).toLocaleString('sr-RS')} RSD`} size="small" variant="outlined" />
+              <Chip
+                label={`${Number(meal.price).toLocaleString('sr-RS')} RSD`}
+                size="small"
+                variant="outlined"
+                sx={{ color: 'primary.main', borderColor: 'primary.main' }}
+              />
+              {meal.isPosno && (
+                <Chip label="posno" size="small" color="success" variant="outlined" />
+              )}
+              {!meal.active && (
+                <Chip
+                  icon={<VisibilityOffIcon />}
+                  label="skriveno"
+                  size="small"
+                  variant="outlined"
+                />
+              )}
             </Stack>
+
             {meal.description && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 {meal.description}
               </Typography>
             )}
             {meal.note && (
-              <Typography variant="caption" color="secondary.main">
-                ⓘ {meal.note}
+              <Typography
+                variant="caption"
+                sx={(t) => ({
+                  display: 'inline-block',
+                  mt: 0.75,
+                  px: 1,
+                  py: 0.4,
+                  borderRadius: 1.5,
+                  color: 'secondary.dark',
+                  bgcolor: t.vars.palette.action.hover,
+                  ...t.applyStyles('dark', { color: t.vars.palette.secondary.light }),
+                })}
+              >
+                {meal.note}
               </Typography>
             )}
           </Box>
-          <IconButton onClick={onEdit} aria-label="Izmeni">
-            <EditIcon />
-          </IconButton>
-          <IconButton onClick={onDelete} aria-label="Obriši" color="error">
-            <DeleteOutlineIcon />
-          </IconButton>
+
+          <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0 }}>
+            <Tooltip title="Izmeni">
+              <IconButton
+                onClick={onEdit}
+                aria-label="Izmeni"
+                size="small"
+                sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Obriši">
+              <IconButton
+                onClick={onDelete}
+                aria-label="Obriši"
+                size="small"
+                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+              >
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
       </CardContent>
     </Card>

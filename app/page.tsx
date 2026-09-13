@@ -7,25 +7,29 @@ import {
   Typography,
   Card,
   CardContent,
-  Checkbox,
   Chip,
   TextField,
   Button,
+  ButtonBase,
   IconButton,
   Alert,
   Divider,
   CircularProgress,
-  ToggleButton,
-  ToggleButtonGroup,
+  Skeleton,
   Snackbar,
+  Tooltip,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import CheckIcon from '@mui/icons-material/Check';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import SoupKitchenIcon from '@mui/icons-material/SoupKitchen';
+import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import { useAuth } from './auth-context';
 import { WEEKDAYS } from '@/lib/constants';
 import {
@@ -60,6 +64,10 @@ function todayMidnight(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function rsd(n: number) {
+  return `${n.toLocaleString('sr-RS')} RSD`;
 }
 
 export default function HomePage() {
@@ -172,6 +180,12 @@ export default function HomePage() {
     setSelectedDate(toISODate(days[targetDow]));
   }
 
+  // Vrati se na polazni dan (danas, ili prvi radni dan ako je vikend).
+  function goToday() {
+    setWeekAnchor(initialDate);
+    setSelectedDate(toISODate(initialDate));
+  }
+
   async function save() {
     setSaving(true);
     setError('');
@@ -235,99 +249,156 @@ export default function HomePage() {
 
   if (authLoading || !user) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
         <CircularProgress />
       </Box>
     );
   }
 
+  const todayIso = toISODate(todayMidnight());
+  // Vikendom polazni dan nije "danas", pa poredimo sa polaznim danom -
+  // inače bi dugme "Nazad na danas" stajalo i kad ništa nije pomereno.
+  const onStartingDay = selectedDate === toISODate(initialDate);
+  const selectedDayName =
+    WEEKDAYS.find((w) => w.value === selDateObj.getDay())?.label ?? '';
+
   return (
-    <Stack spacing={3}>
+    <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
       <Box>
-        <Typography variant="h4" gutterBottom>
-          Šta jedemo?
+        <Typography variant="h4" sx={{ mb: 0.5 }}>
+          What's up, {user.username}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Izaberi obrok za željeni dan. Možeš izabrati više jela, promeniti količinu,
+        <Typography variant="body1" color="text.secondary">
+          Izaberi obrok. Možeš izabrati više jela, promeniti količinu,
           dodati napomenu ili upisati nešto svoje.
         </Typography>
       </Box>
 
-      {/* Navigacija po nedeljama */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <IconButton onClick={() => shiftWeek(-1)} aria-label="Prethodna nedelja">
-          <ChevronLeftIcon />
-        </IconButton>
-        <Typography variant="subtitle2" color="text.secondary">
-          {formatDateLong(weekDays[0])} – {formatDateLong(weekDays[4])}
-        </Typography>
-        <IconButton onClick={() => shiftWeek(1)} aria-label="Sledeća nedelja">
-          <ChevronRightIcon />
-        </IconButton>
-      </Stack>
+      <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1.5 }}
+        >
+          <Tooltip title="Prethodna nedelja">
+            <IconButton onClick={() => shiftWeek(-1)} aria-label="Prethodna nedelja" size="small">
+              <ChevronLeftIcon />
+            </IconButton>
+          </Tooltip>
 
-      {/* Izbor dana */}
-      <ToggleButtonGroup
-        exclusive
-        value={selectedDate}
-        onChange={(_, val) => val && setSelectedDate(val)}
-        fullWidth
-        color="primary"
-        size="small"
-      >
-        {weekDays.map((d, i) => {
-          const iso = toISODate(d);
-          const isToday = iso === toISODate(todayMidnight());
-          return (
-            <ToggleButton key={iso} value={iso} onClick={() => pickDay(d)}>
-              <Stack alignItems="center" spacing={0}>
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                  {WEEKDAYS[i].short}
+          <Stack alignItems="center" spacing={0.25}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {formatDateLong(weekDays[0])} - {formatDateLong(weekDays[4])}
+            </Typography>
+            {!onStartingDay && (
+              <Button size="small" onClick={goToday} sx={{ py: 0, minHeight: 0 }}>
+                Nazad na danas
+              </Button>
+            )}
+          </Stack>
+
+          <Tooltip title="Sledeća nedelja">
+            <IconButton onClick={() => shiftWeek(1)} aria-label="Sledeća nedelja" size="small">
+              <ChevronRightIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: { xs: 0.75, sm: 1 },
+          }}
+        >
+          {weekDays.map((d, i) => {
+            const iso = toISODate(d);
+            const isToday = iso === todayIso;
+            const selected = iso === selectedDate;
+            const past = d < todayMidnight();
+            return (
+              <ButtonBase
+                key={iso}
+                onClick={() => pickDay(d)}
+                sx={(t) => ({
+                  flexDirection: 'column',
+                  gap: 0.25,
+                  py: { xs: 1, sm: 1.25 },
+                  // Fiksan radijus: na uskom ekranu bi procentualni pretvorio
+                  // izabrani dan u krug.
+                  borderRadius: '14px',
+                  border: '1.5px solid',
+                  borderColor: selected ? 'primary.main' : t.vars.palette.divider,
+                  bgcolor: selected ? 'primary.main' : 'transparent',
+                  color: selected ? 'primary.contrastText' : 'text.primary',
+                  opacity: past && !selected ? 0.45 : 1,
+                  transition: t.transitions.create(
+                    ['background-color', 'border-color', 'color', 'transform'],
+                    { duration: 160 },
+                  ),
+                  '&:hover': {
+                    bgcolor: selected ? 'primary.dark' : t.vars.palette.action.hover,
+                    borderColor: selected ? 'primary.dark' : 'primary.light',
+                  },
+                })}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 700, letterSpacing: '0.04em' }}
+                >
+                  {WEEKDAYS[i].short.toUpperCase()}
                 </Typography>
-                <Typography variant="caption">
-                  {String(d.getDate()).padStart(2, '0')}.{String(d.getMonth() + 1).padStart(2, '0')}.
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: selected ? 700 : 500, lineHeight: 1.2 }}
+                >
+                  {String(d.getDate()).padStart(2, '0')}.
+                  {String(d.getMonth() + 1).padStart(2, '0')}.
                 </Typography>
-                {isToday && (
-                  <Box
-                    sx={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: '50%',
-                      bgcolor: 'secondary.main',
-                      mt: 0.25,
-                    }}
-                  />
-                )}
-              </Stack>
-            </ToggleButton>
-          );
-        })}
-      </ToggleButtonGroup>
+                <Box
+                  sx={{
+                    width: 5,
+                    height: 5,
+                    mt: 0.25,
+                    borderRadius: '50%',
+                    bgcolor: isToday
+                      ? selected
+                        ? 'primary.contrastText'
+                        : 'secondary.main'
+                      : 'transparent',
+                  }}
+                />
+              </ButtonBase>
+            );
+          })}
+        </Box>
+      </Card>
 
       {error && <Alert severity="error">{error}</Alert>}
 
       {isPast ? (
         <Alert severity="info">
-          Ovaj dan je prošao — porudžbina se više ne može menjati.
+          Ovaj dan je prošao - porudžbina se više ne može menjati.
         </Alert>
       ) : (
-        <Alert severity="info" variant="outlined">
-          Obavezno naručivanje obroka dan ranije!
-        </Alert>
+        <Alert severity="warning">Obavezno naručivanje obroka dan ranije!</Alert>
       )}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
+        <MenuSkeleton />
       ) : menu.length === 0 ? (
-        <Alert severity="warning">Za ovaj dan još nije unet meni.</Alert>
+        <EmptyMenu dayName={selectedDayName} />
       ) : (
         <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
           {/* Leva kolona: jelovnik */}
-          <Stack spacing={3} sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Stack spacing={{ xs: 2.5, sm: 3.5 }} sx={{ flexGrow: 1, minWidth: 0 }}>
             {kuvana.length > 0 && (
-              <Section title="Kuvana jela">
+              <Section
+                title="Kuvana jela"
+                count={kuvana.length}
+                icon={<SoupKitchenIcon fontSize="small" />}
+              >
                 {kuvana.map((m) => (
                   <MealItem
                     key={m.id}
@@ -345,7 +416,11 @@ export default function HomePage() {
             )}
 
             {suva.length > 0 && (
-              <Section title="Suvi obrok">
+              <Section
+                title="Suvi obrok"
+                count={suva.length}
+                icon={<BakeryDiningIcon fontSize="small" />}
+              >
                 {suva.map((m) => (
                   <MealItem
                     key={m.id}
@@ -363,46 +438,51 @@ export default function HomePage() {
             )}
 
             {/* Sopstvene porudžbine */}
-            <Section title="Nešto drugo?">
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Ako ti ništa ne odgovara, upiši šta želiš.
-              </Typography>
-              <Stack spacing={1}>
-                {customItems.map((val, idx) => (
-                  <Stack direction="row" spacing={1} key={idx}>
-                    <TextField
-                      fullWidth
+            <Section title="Nešto drugo?" icon={<EditNoteIcon fontSize="small" />}>
+              <Card sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Ako ti ništa ne odgovara, upiši šta želiš.
+                </Typography>
+                <Stack spacing={1.25}>
+                  {customItems.map((val, idx) => (
+                    <Stack direction="row" spacing={1} key={idx}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="npr. Grčka salata bez luka"
+                        value={val}
+                        disabled={isPast}
+                        onChange={(e) =>
+                          setCustomItems((items) =>
+                            items.map((v, i) => (i === idx ? e.target.value : v)),
+                          )
+                        }
+                      />
+                      <IconButton
+                        aria-label="Ukloni"
+                        disabled={isPast}
+                        onClick={() =>
+                          setCustomItems((items) => items.filter((_, i) => i !== idx))
+                        }
+                        sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                      >
+                        <DeleteOutlineIcon />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                  {!isPast && (
+                    <Button
+                      startIcon={<AddIcon />}
+                      onClick={() => setCustomItems((items) => [...items, ''])}
+                      sx={{ alignSelf: 'flex-start' }}
+                      variant="outlined"
                       size="small"
-                      placeholder="npr. Grčka salata bez luka"
-                      value={val}
-                      disabled={isPast}
-                      onChange={(e) =>
-                        setCustomItems((items) =>
-                          items.map((v, i) => (i === idx ? e.target.value : v)),
-                        )
-                      }
-                    />
-                    <IconButton
-                      aria-label="Ukloni"
-                      disabled={isPast}
-                      onClick={() =>
-                        setCustomItems((items) => items.filter((_, i) => i !== idx))
-                      }
                     >
-                      <DeleteOutlineIcon />
-                    </IconButton>
-                  </Stack>
-                ))}
-                {!isPast && (
-                  <Button
-                    startIcon={<AddIcon />}
-                    onClick={() => setCustomItems((items) => [...items, ''])}
-                    sx={{ alignSelf: 'flex-start' }}
-                  >
-                    Dodaj svoju stavku
-                  </Button>
-                )}
-              </Stack>
+                      Dodaj svoju stavku
+                    </Button>
+                  )}
+                </Stack>
+              </Card>
             </Section>
           </Stack>
 
@@ -410,11 +490,11 @@ export default function HomePage() {
           {!isPast && (
             <Box
               sx={{
-                width: 300,
+                width: 310,
                 flexShrink: 0,
                 display: { xs: 'none', md: 'block' },
                 position: 'sticky',
-                top: 84,
+                top: 90,
               }}
             >
               <ReceiptCard
@@ -430,39 +510,53 @@ export default function HomePage() {
         </Box>
       )}
 
-      {/* Mobilna traka za snimanje (uski ekran) */}
-      {!isPast && menu.length > 0 && (
+      {/* Plutajuca traka za snimanje (uski ekran) */}
+      {!isPast && menu.length > 0 && !loading && (
         <Box
           sx={{
             position: 'sticky',
-            bottom: 16,
+            bottom: 12,
             zIndex: 2,
             display: { xs: 'block', md: 'none' },
           }}
         >
-          <Card sx={{ boxShadow: 3 }}>
-            <CardContent sx={{ py: 1.5 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                spacing={2}
+          <Card
+            sx={(t) => ({
+              boxShadow: t.shadows[8],
+              borderRadius: 999,
+              px: 2,
+              py: 1.25,
+              backdropFilter: 'blur(12px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+              backgroundColor: 'rgba(255, 255, 255, 0.86)',
+              ...t.applyStyles('dark', {
+                backgroundColor: 'rgba(30, 24, 21, 0.88)',
+              }),
+            })}
+          >
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={2}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {portionCount} {portionCount === 1 ? 'porcija' : 'porcija'}
+                </Typography>
+                <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                  {totalPrice > 0 ? rsd(totalPrice) : '-'}
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                onClick={save}
+                disabled={saving}
+                startIcon={saving ? undefined : <CheckIcon />}
               >
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Porcija: {portionCount}
-                  </Typography>
-                  {totalPrice > 0 && (
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                      {totalPrice.toLocaleString('sr-RS')} RSD
-                    </Typography>
-                  )}
-                </Box>
-                <Button variant="contained" size="large" onClick={save} disabled={saving}>
-                  {saving ? 'Čuvanje…' : 'Sačuvaj'}
-                </Button>
-              </Stack>
-            </CardContent>
+                {saving ? 'Čuvanje...' : 'Sačuvaj'}
+              </Button>
+            </Stack>
           </Card>
         </Box>
       )}
@@ -473,7 +567,7 @@ export default function HomePage() {
         onClose={() => setSavedOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="success" onClose={() => setSavedOpen(false)}>
+        <Alert severity="success" variant="filled" onClose={() => setSavedOpen(false)}>
           Porudžbina je sačuvana.
         </Alert>
       </Snackbar>
@@ -481,14 +575,60 @@ export default function HomePage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  icon,
+  children,
+}: {
+  title: string;
+  count?: number;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <Box>
-      <Typography variant="h6" sx={{ mb: 1.5 }}>
-        {title}
-      </Typography>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+        <Box sx={{ display: 'flex', color: 'primary.main' }}>{icon}</Box>
+        <Typography
+          variant="overline"
+          sx={{ color: 'text.secondary', lineHeight: 1 }}
+        >
+          {title}
+        </Typography>
+        {count !== undefined && (
+          <Chip label={count} size="small" variant="outlined" sx={{ height: 20 }} />
+        )}
+        <Divider sx={{ flexGrow: 1, ml: 1 }} />
+      </Stack>
       <Stack spacing={1.5}>{children}</Stack>
     </Box>
+  );
+}
+
+function MenuSkeleton() {
+  return (
+    <Stack spacing={1.5}>
+      <Skeleton variant="text" width={140} height={28} />
+      {[0, 1, 2].map((i) => (
+        <Skeleton key={i} variant="rounded" height={92} />
+      ))}
+    </Stack>
+  );
+}
+
+function EmptyMenu({ dayName }: { dayName: string }) {
+  return (
+    <Card sx={{ py: 6, px: 3, textAlign: 'center' }}>
+      <SoupKitchenIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
+      <Typography variant="h6" sx={{ mb: 0.5 }}>
+        Meni još nije unet
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Za {dayName ? dayName.toLowerCase() : 'ovaj dan'} još nema jela. Probaj kasnije
+        ili izaberi drugi dan.
+      </Typography>
+    </Card>
   );
 }
 
@@ -509,63 +649,83 @@ function ReceiptCard({
 }) {
   const empty = items.length === 0 && customs.length === 0;
   return (
-    <Card sx={{ boxShadow: 3 }}>
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <ReceiptLongIcon color="primary" />
+    <Card sx={(t) => ({ boxShadow: t.shadows[4] })}>
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <ReceiptLongIcon color="primary" fontSize="small" />
           <Typography variant="h6">Tvoja porudžbina</Typography>
         </Stack>
-        <Divider sx={{ mb: 1.5 }} />
+
+        <Divider sx={{ mb: 1.75, borderStyle: 'dashed' }} />
 
         {empty ? (
-          <Typography variant="body2" color="text.secondary">
-            Još ništa nije izabrano.
-          </Typography>
+          <Box sx={{ py: 2, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              Još ništa nije izabrano.
+            </Typography>
+          </Box>
         ) : (
-          <Stack spacing={0.75}>
+          <Stack spacing={1}>
             {items.map((it) => (
               <Stack
                 key={it.id}
                 direction="row"
                 justifyContent="space-between"
-                spacing={1}
+                spacing={1.5}
               >
                 <Typography variant="body2">
                   {it.name}
                   {it.qty > 1 && (
-                    <Typography component="span" sx={{ fontWeight: 700 }}>
-                      {' '}×{it.qty}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      sx={{ fontWeight: 700, color: 'primary.main' }}
+                    >
+                      {' '}
+                      x{it.qty}
                     </Typography>
                   )}
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-                  {(it.price * it.qty).toLocaleString('sr-RS')} RSD
+                <Typography
+                  variant="body2"
+                  sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}
+                >
+                  {rsd(it.price * it.qty)}
                 </Typography>
               </Stack>
             ))}
             {customs.map((c, i) => (
-              <Stack key={`c-${i}`} direction="row" justifyContent="space-between" spacing={1}>
+              <Stack
+                key={`c-${i}`}
+                direction="row"
+                justifyContent="space-between"
+                spacing={1.5}
+              >
                 <Typography variant="body2" color="text.secondary">
                   {c}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  —
+                  -
                 </Typography>
               </Stack>
             ))}
           </Stack>
         )}
 
-        <Divider sx={{ my: 1.5 }} />
-        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+        <Divider sx={{ my: 1.75, borderStyle: 'dashed' }} />
+
+        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}>
           <Typography variant="body2" color="text.secondary">
-            Porcija: {portionCount}
+            Porcija
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {portionCount}
           </Typography>
         </Stack>
-        <Stack direction="row" justifyContent="space-between">
+        <Stack direction="row" justifyContent="space-between" alignItems="baseline">
           <Typography sx={{ fontWeight: 700 }}>Ukupno</Typography>
-          <Typography sx={{ fontWeight: 700 }}>
-            {total.toLocaleString('sr-RS')} RSD
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+            {rsd(total)}
           </Typography>
         </Stack>
 
@@ -573,11 +733,12 @@ function ReceiptCard({
           fullWidth
           variant="contained"
           size="large"
-          sx={{ mt: 2 }}
+          sx={{ mt: 2.5 }}
           onClick={onSave}
           disabled={saving}
+          startIcon={saving ? undefined : <CheckIcon />}
         >
-          {saving ? 'Čuvanje…' : 'Sačuvaj porudžbinu'}
+          {saving ? 'Čuvanje...' : 'Sačuvaj porudžbinu'}
         </Button>
       </CardContent>
     </Card>
@@ -604,93 +765,199 @@ function MealItem({
   onNote: (v: string) => void;
 }) {
   const checked = qty > 0;
+  const price = Number(meal.price) || 0;
+
   return (
     <Card
-      sx={{
-        borderColor: checked ? 'primary.main' : undefined,
-        borderWidth: checked ? 2 : 1,
-      }}
+      sx={(t) => ({
+        position: 'relative',
+        overflow: 'hidden',
+        borderColor: checked ? 'primary.main' : t.vars.palette.divider,
+        boxShadow: checked ? t.shadows[3] : 'none',
+        // Akcenatska traka uz levu ivicu kada je jelo izabrano.
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          bgcolor: 'primary.main',
+          opacity: checked ? 1 : 0,
+          transition: t.transitions.create('opacity', { duration: 180 }),
+        },
+        '&:hover': disabled
+          ? undefined
+          : {
+              borderColor: checked ? 'primary.main' : 'primary.light',
+              boxShadow: t.shadows[2],
+            },
+      })}
     >
-      <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-        <Stack direction="row" spacing={1} alignItems="flex-start">
-          <Checkbox
-            checked={checked}
-            onChange={onToggle}
-            disabled={disabled}
-            sx={{ mt: -1, ml: -1 }}
-          />
-          <Box sx={{ flexGrow: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Typography sx={{ fontWeight: 600 }}>{meal.name}</Typography>
-              {meal.isPosno && <Chip label="posno" size="small" color="success" variant="outlined" />}
+      {/* Ceo gornji deo kartice je klikabilan - lakše na telefonu. */}
+      <ButtonBase
+        onClick={disabled ? undefined : onToggle}
+        disabled={disabled}
+        component="div"
+        sx={{
+          width: '100%',
+          textAlign: 'left',
+          display: 'block',
+          cursor: disabled ? 'default' : 'pointer',
+          p: 2,
+          pl: 2.25,
+        }}
+      >
+        <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          {/* Prilagođeni "checkbox" - krug koji se popuni kvačicom. */}
+          <Box
+            aria-hidden
+            sx={(t) => ({
+              mt: 0.25,
+              width: 24,
+              height: 24,
+              flexShrink: 0,
+              borderRadius: '50%',
+              border: '2px solid',
+              borderColor: checked ? 'primary.main' : t.vars.palette.grey[400],
+              bgcolor: checked ? 'primary.main' : 'transparent',
+              color: 'primary.contrastText',
+              display: 'grid',
+              placeItems: 'center',
+              transition: t.transitions.create(
+                ['background-color', 'border-color'],
+                { duration: 160 },
+              ),
+            })}
+          >
+            {checked && <CheckIcon sx={{ fontSize: 16 }} />}
+          </Box>
+
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="baseline"
+              justifyContent="space-between"
+            >
+              <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                {meal.name}
+              </Typography>
+              {price > 0 && (
+                <Typography
+                  sx={{ fontWeight: 700, whiteSpace: 'nowrap', color: 'primary.main' }}
+                >
+                  {rsd(price)}
+                </Typography>
+              )}
+            </Stack>
+
+            {meal.description && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                {meal.description}
+              </Typography>
+            )}
+
+            <Stack
+              direction="row"
+              spacing={0.75}
+              alignItems="center"
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 1 }}
+            >
+              {meal.isPosno && (
+                <Chip label="posno" size="small" color="success" variant="outlined" />
+              )}
               {count > 0 && (
                 <Chip
                   icon={<PeopleAltIcon />}
                   label={count}
                   size="small"
                   variant="outlined"
+                  sx={{ color: 'text.secondary' }}
                 />
               )}
             </Stack>
 
-            {meal.description && (
-              <Typography variant="body2" color="text.secondary">
-                {meal.description}
-              </Typography>
-            )}
             {meal.note && (
-              <Typography variant="caption" color="secondary.main" sx={{ display: 'block', mt: 0.5 }}>
-                ⓘ {meal.note}
+              <Typography
+                variant="caption"
+                sx={(t) => ({
+                  display: 'block',
+                  mt: 1,
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1.5,
+                  color: 'secondary.dark',
+                  bgcolor: t.vars.palette.action.hover,
+                  ...t.applyStyles('dark', { color: t.vars.palette.secondary.light }),
+                })}
+              >
+                {meal.note}
               </Typography>
-            )}
-
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 0.5 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {Number(meal.price) > 0 ? `${Number(meal.price).toLocaleString('sr-RS')} RSD` : ''}
-              </Typography>
-            </Stack>
-
-            {checked && (
-              <Box sx={{ mt: 1 }}>
-                {/* Količina */}
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Količina:
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    aria-label="Smanji"
-                    disabled={disabled}
-                    onClick={() => onQty(qty - 1)}
-                  >
-                    <RemoveIcon fontSize="small" />
-                  </IconButton>
-                  <Typography sx={{ minWidth: 24, textAlign: 'center', fontWeight: 700 }}>
-                    {qty}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    aria-label="Povećaj"
-                    disabled={disabled}
-                    onClick={() => onQty(qty + 1)}
-                  >
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
-
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Dodatak / napomena (npr. bez luka, duplo meso)"
-                  value={note}
-                  disabled={disabled}
-                  onChange={(e) => onNote(e.target.value)}
-                />
-              </Box>
             )}
           </Box>
         </Stack>
-      </CardContent>
+      </ButtonBase>
+
+      {/* Količina i napomena - van klikabilne zone da klik ne gasi izbor. */}
+      {checked && (
+        <Box sx={{ px: 2, pb: 2, pl: 2.25 }}>
+          <Divider sx={{ mb: 1.75 }} />
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1.5}
+            alignItems={{ sm: 'center' }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                Količina
+              </Typography>
+              <Stack
+                direction="row"
+                alignItems="center"
+                sx={(t) => ({
+                  border: '1.5px solid',
+                  borderColor: t.vars.palette.divider,
+                  borderRadius: 999,
+                })}
+              >
+                <IconButton
+                  size="small"
+                  aria-label="Smanji"
+                  disabled={disabled}
+                  onClick={() => onQty(qty - 1)}
+                >
+                  <RemoveIcon fontSize="small" />
+                </IconButton>
+                <Typography
+                  sx={{ minWidth: 26, textAlign: 'center', fontWeight: 700 }}
+                >
+                  {qty}
+                </Typography>
+                <IconButton
+                  size="small"
+                  aria-label="Povećaj"
+                  disabled={disabled}
+                  onClick={() => onQty(qty + 1)}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </Stack>
+
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Dodatak / napomena (npr. bez luka)"
+              value={note}
+              disabled={disabled}
+              onChange={(e) => onNote(e.target.value)}
+            />
+          </Stack>
+        </Box>
+      )}
     </Card>
   );
 }

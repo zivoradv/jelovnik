@@ -5,15 +5,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Box,
-  Paper,
+  Card,
   TextField,
   Button,
   Typography,
   Alert,
   Stack,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
-import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import LoginIcon from '@mui/icons-material/Login';
 import { useAuth } from '../auth-context';
+import BrandMark from '../components/BrandMark';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
   return (
@@ -29,6 +37,7 @@ function LoginForm() {
   const params = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -50,17 +59,32 @@ function LoginForm() {
   return (
     <Box
       sx={{
-        minHeight: '80dvh',
+        minHeight: '82dvh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
       }}
     >
-      <Paper sx={{ p: 4, width: '100%', maxWidth: 400 }} elevation={0} variant="outlined">
-        <Stack spacing={1} alignItems="center" sx={{ mb: 3 }}>
-          <RestaurantMenuIcon color="primary" sx={{ fontSize: 40 }} />
-          <Typography variant="h5">Jelovnik</Typography>
-          <Typography variant="body2" color="text.secondary">
+      <Box sx={{ position: 'absolute', top: 0, right: 0 }}>
+        <ThemeToggle />
+      </Box>
+
+      <Card
+        sx={(t) => ({
+          p: { xs: 3, sm: 4 },
+          width: '100%',
+          maxWidth: 420,
+          boxShadow: t.shadows[5],
+        })}
+      >
+        <Stack spacing={1} alignItems="center" sx={{ mb: 3.5 }}>
+          <BrandMark size="lg" showText={false} />
+          <Typography variant="h5" sx={{ mt: 1.5 }}>
+            Dobro došli nazad
+          </Typography>
+          <Typography variant="body2" color="text.secondary" align="center">
             Prijavite se da naručite obrok
           </Typography>
         </Stack>
@@ -68,6 +92,7 @@ function LoginForm() {
         <form onSubmit={handleSubmit}>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
+
             <TextField
               label="Korisničko ime"
               value={username}
@@ -75,24 +100,79 @@ function LoginForm() {
               autoFocus
               required
               fullWidth
+              autoComplete="username"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonOutlineIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+              }}
             />
+
             <TextField
               label="Lozinka"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               fullWidth
+              autoComplete="current-password"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                      size="small"
+                      aria-label={showPassword ? 'Sakrij lozinku' : 'Prikaži lozinku'}
+                    >
+                      {showPassword ? (
+                        <VisibilityOffOutlinedIcon fontSize="small" />
+                      ) : (
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
-            <Button type="submit" variant="contained" size="large" disabled={busy} fullWidth>
+
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              disabled={busy}
+              fullWidth
+              startIcon={busy ? undefined : <LoginIcon />}
+              sx={{ mt: 0.5 }}
+            >
               {busy ? 'Prijavljivanje…' : 'Prijavi se'}
             </Button>
+
             <Typography variant="body2" align="center" color="text.secondary">
-              Nemate nalog? <Link href="/register">Registrujte se</Link>
+              Nemate nalog?{' '}
+              <Box
+                component={Link}
+                href="/register"
+                sx={{
+                  color: 'primary.main',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                Registrujte se
+              </Box>
             </Typography>
           </Stack>
         </form>
-      </Paper>
+      </Card>
     </Box>
   );
 }

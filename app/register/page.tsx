@@ -5,15 +5,23 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Box,
-  Paper,
+  Card,
   TextField,
   Button,
   Typography,
   Alert,
   Stack,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
-import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
 import { useAuth } from '../auth-context';
+import BrandMark from '../components/BrandMark';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -21,8 +29,12 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Lozinke se ne poklapaju - prikaži tek kad korisnik počne da kuca potvrdu.
+  const mismatch = password2.length > 0 && password !== password2;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,21 +58,40 @@ export default function RegisterPage() {
   return (
     <Box
       sx={{
-        minHeight: '80dvh',
+        minHeight: '82dvh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
       }}
     >
-      <Paper sx={{ p: 4, width: '100%', maxWidth: 400 }} elevation={0} variant="outlined">
-        <Stack spacing={1} alignItems="center" sx={{ mb: 3 }}>
-          <RestaurantMenuIcon color="primary" sx={{ fontSize: 40 }} />
-          <Typography variant="h5">Napravite nalog</Typography>
+      <Box sx={{ position: 'absolute', top: 0, right: 0 }}>
+        <ThemeToggle />
+      </Box>
+
+      <Card
+        sx={(t) => ({
+          p: { xs: 3, sm: 4 },
+          width: '100%',
+          maxWidth: 420,
+          boxShadow: t.shadows[5],
+        })}
+      >
+        <Stack spacing={1} alignItems="center" sx={{ mb: 3.5 }}>
+          <BrandMark size="lg" showText={false} />
+          <Typography variant="h5" sx={{ mt: 1.5 }}>
+            Napravite nalog
+          </Typography>
+          <Typography variant="body2" color="text.secondary" align="center">
+            Par sekundi i možete naručiti prvi obrok
+          </Typography>
         </Stack>
 
         <form onSubmit={handleSubmit}>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
+
             <TextField
               label="Korisničko ime"
               value={username}
@@ -68,33 +99,98 @@ export default function RegisterPage() {
               autoFocus
               required
               fullWidth
+              autoComplete="username"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonOutlineIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+              }}
             />
+
             <TextField
               label="Lozinka"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               fullWidth
+              autoComplete="new-password"
               helperText="Najmanje 4 karaktera"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                      size="small"
+                      aria-label={showPassword ? 'Sakrij lozinku' : 'Prikaži lozinku'}
+                    >
+                      {showPassword ? (
+                        <VisibilityOffOutlinedIcon fontSize="small" />
+                      ) : (
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
+
             <TextField
               label="Potvrda lozinke"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password2}
               onChange={(e) => setPassword2(e.target.value)}
               required
               fullWidth
+              autoComplete="new-password"
+              error={mismatch}
+              helperText={mismatch ? 'Lozinke se ne poklapaju.' : ' '}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+              }}
             />
-            <Button type="submit" variant="contained" size="large" disabled={busy} fullWidth>
+
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              disabled={busy || mismatch}
+              fullWidth
+              startIcon={busy ? undefined : <PersonAddAltIcon />}
+            >
               {busy ? 'Kreiranje…' : 'Registruj se'}
             </Button>
+
             <Typography variant="body2" align="center" color="text.secondary">
-              Već imate nalog? <Link href="/login">Prijavite se</Link>
+              Već imate nalog?{' '}
+              <Box
+                component={Link}
+                href="/login"
+                sx={{
+                  color: 'primary.main',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                Prijavite se
+              </Box>
             </Typography>
           </Stack>
         </form>
-      </Paper>
+      </Card>
     </Box>
   );
 }
