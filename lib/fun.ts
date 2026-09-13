@@ -11,29 +11,59 @@ const MORNING = [
     'Jutro, {name}. Stomak se već javio?',
     'Jutro, {name}. Kuvarica tek pali šporet.',
     'Howdy cowboy.',
+    'Jutro, {name}. Ko rano rani, dve porcije grabi. Zapravo ne.',
+    'Ustao si pre kuvarice, {name}.',
+    'Jutro. Ako si došao ovde pre kafe, imamo problem. Ili imaš ti. Uglavnom, neko ima.',
+    'Dobro jutro, {name}. Znaš onu: „doručak je najvažniji obrok dana”? Ovde nema doručka. Naruči ručak. OSIM U SLUCAJU DA NARUCIS DVA HASA?! YOU WOULDNT RIHGT?',
+    '{name}, jutro. Sanjao sam da si naručio dve sarme.',
+    'Rise and shine, {name}. Šporet se greje, valjda.',
+    'Developer voli kafu',
+    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const NOON = [
     '{name}, vreme ručka! Nadamo se da si juče naručio.',
-    'Podne je, {name}. Ako nisi naručio, sad je kasno — ali za sutra nije.',
-    'DESI, {name}! Zar ne bi trebalo da si u kuhinji?',
+    'Podne je, {name}. Ako nisi naručio, sad je kasno - ali za sutra nije.',
+    'Ručak je sad, {name}. Ako gledaš ovo umesto da jedeš, aplikacija ti je zanimljivija od hrane. Hvala. Bas cenite developere??',
+    'Podne, {name}. Da te pitam nešto, jesi naručio? Ne moraš da odgovoriš, ja već znam.',
+    '{name}, high noon. Cigarica posle ručka??',
+    'Mozda da skuvas kafu za developera??',
 ] as const
 
 const AFTERNOON = [
-    'Poz, {name}. Sutra je novi dan, a takodje je i prekosutra.',
-    'Sve sto mozes danas ostavi za sutra. - neka stara poslovica, nzm gde sam je cuo',
+    'Poz, {name}. Sutra je novi dan, a takođe je i prekosutra.',
+    'Sve što možeš danas ostavi za sutra. - neka stara poslovica, nzm gde sam je čuo',
     'Zdravo, {name}. Danas je dan, a sutra je... novi dan.',
-    'Volim osmeh tvoj bas dobro ti stoji - Tose Proeski',
-    'Cao, {name}. Si znao da je jednom kauboj usao u restoran i pitao ko je Cile a ko Mile? Upucao je obojicu jer kod njega nema cile mile. lol. A takodje nema ni hasa ako ga ne narucis!! Tako da mozda bi valjalo da pogledas listu dole?',
+    'Volim osmeh tvoj baš dobro ti stoji - Toše Proeski',
+    'Ćao, {name}. Si znao da je jednom kauboj ušao u restoran i pitao ko je Cile a ko Mile? Upucao je obojicu jer kod njega nema cile mile. lol. A takođe nema ni haša ako ga ne naručiš!! Tako da možda bi valjalo da pogledaš listu dole?',
+    'Chuck Norris bi pojeo sve sa ovog menija',
+    'Popodne, {name}. Kafa broj tri i dilema broj jedan: šta sutra?',
+    '{name}, ovo je zlatni sat. a kad smo kod zlatnog sata?? Si ti cuo vic o zlatnoj zabi?',
+    'Ako se neko naljuti na neku foru znajte da developer NIT JE LUK JEO NIT MIRISAO, kontas kao ovo je jelovnik a luk ide u hranu pa kao',
+    'Ne pitaj šta jelovnik može da uradi za tebe, pitaj šta ti možeš da naručiš sa jelovnika. - JFK, otprilike',
+    'Ćao {name}. Ako čitaš ovo, znači da ti je dosadno. Ako ti je dosadno, naruči. Ako si naručio, naruči za prekosutra.',
+    'Bio jednom jedan {name} koji nije naručio ručak.',
+    'Jel znas da se otvorio KFC u BIGU???',
 ] as const
 
 const EVENING = [
-    'Dobro veče, {name}. Naruči za sutra pre nego što zaboravis.',
-    '{name}, veče je jbg. Bas volis ovu aplikaciju?',
+    'Dobro veče, {name}. Naruči za sutra pre nego što zaboraviš.',
+    '{name}, veče je jbg. Baš voliš ovu aplikaciju?',
     'Kasno je, {name}, ali jelovnik ne spava.',
+    'Veče, {name}. Netflix može da čeka. Kuvarica ne može.',
+    'Dobro veče. Znaš onu izreku „ko se uveče smeje, ujutru je naručio”? Ne znaš jer sam je sad izmislio. Ali je tačna.',
+    '{name}, večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
 ] as const
 
-const NIGHT = ['Još si budan, {name}? Kuvarica spava, ali meni ne.', '{name}, baas volis ovu aplikaciju?'] as const
+const NIGHT = [
+    'Još si budan, {name}? Kuvarica spava, ali meni ne.',
+    '{name}, baaš voliš ovu aplikaciju?',
+    '{name}, tri je ujutru. Ne osuđujem. Samo beležim.',
+    'Noć je, {name}. Ovo je ili posvećenost ili nesanica. U oba slučaja - naruči.',
+    'Kuvarica sanja sarmu. Ti sanjaš jelovnik. Nešto se poklapa.',
+    '{name}, gde si bio u ovo doba? Ne moraš da kažeš, pitanje je retoričko, ali stomak pita.',
+    'Jedini ko je sada budan pored tebe je ovaj server. Pozdravlja te.',
+] as const
 
 const DAY_TAGLINES: Record<number, readonly string[]> = {
     1: ['Ponedeljak. kafica, cigarica, dr..uzenje?'],
@@ -91,7 +121,7 @@ export function quantityReaction(qty: number): string | null {
 
 const CUSTOM_REACTIONS: [RegExp, string][] = [
     [/pic[ae]|pizza/i, 'Pica? Ambiciozno. Držimo palčeve.'],
-    [/burek/i, 'Burek — ozbiljan izbor za ozbiljne ljude.'],
+    [/burek/i, 'Burek - ozbiljan izbor za ozbiljne ljude.'],
     [/salat/i, 'Salata. Neko pazi na liniju. Respek.'],
     [/^\s*ni[šs]ta\s*$/i, 'Ništa? To se ne naručuje >:C'],
     [/pivo|rakij|vino/i, 'To ćemo se praviti da nismo videli.'],
@@ -118,7 +148,7 @@ export function debtRoast(unpaidTotal: number, unpaidCount: number): string {
     return 'Druže… ovo više nije dug, ovo je kredit. Kuvarica čeka.'
 }
 
-export const KONAMI_MESSAGE = '↑↑↓↓←→←→BA — Šef kuhinje ti otključava tajni meni: dupla porcija. Samo u snovima.'
+export const KONAMI_MESSAGE = '↑↑↓↓←→←→BA - Šef kuhinje ti otključava tajni meni: dupla porcija. Samo u snovima.'
 
 export const NOT_FOUND_MESSAGES = [
     'Ova stranica je pojedena.',
@@ -133,6 +163,6 @@ export const CONSOLE_BANNER = [
 ] as const
 
 export const CONSOLE_PS = [
-    '%cP.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu — on zna šta si naručio.',
+    '%cP.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu - on zna šta si naručio.',
     'font-size:12px;font-style:italic;color:#C77C22',
 ] as const
