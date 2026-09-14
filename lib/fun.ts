@@ -7,26 +7,20 @@ export function randomOf<T>(items: readonly T[]): T {
 }
 
 const MORNING = [
-    'Dobro jutro, {name}! Kafa prvo, pa jelovnik.',
-    'Jutro, {name}. Stomak se već javio?',
     'Jutro, {name}. Kuvarica tek pali šporet.',
     'Howdy cowboy.',
     'Jutro, {name}. Ko rano rani, dve porcije grabi. Zapravo ne.',
-    'Ustao si pre kuvarice, {name}.',
-    'Jutro. Ako si došao ovde pre kafe, imamo problem. Ili imaš ti. Uglavnom, neko ima.',
+    'Ustao si pre kuvarice.',
     'Dobro jutro, {name}. Znaš onu: „doručak je najvažniji obrok dana”? Ovde nema doručka. Naruči ručak. OSIM U SLUCAJU DA NARUCIS DVA HASA?! YOU WOULDNT RIHGT?',
-    '{name}, jutro. Sanjao sam da si naručio dve sarme.',
     'Rise and shine, {name}. Šporet se greje, valjda.',
     'Developer voli kafu',
-    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const NOON = [
-    'Podne je, {name}.',
-    'Ručak je sad, {name}. Ako gledaš ovo umesto da jedeš, aplikacija ti je zanimljivija od hrane. Hvala.',
-    '{name}, high noon. Cigarica posle ručka??',
-    'Mozda da skuvas kafu za developera??',
-    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
+    'Podne je.',
+    'RUCAK',
+    'ITS TIME TO D-D-D-DUEL',
+    'Nemoj da gasis TV jel vidis da gledam <i>AKTUELNOSTI</i>'
 ] as const
 
 const AFTERNOON = [
@@ -38,29 +32,28 @@ const AFTERNOON = [
     '{name}, ovo je zlatno vrijeme narucivanja hasa. a kad smo kod zlatnog vrijemena?? Si cuo vic o zlatnoj zabi?',
     'Ako se neko naljuti na neku foru znajte da developer NIT JE LUK JEO NIT MIRISAO, kontas kao ovo je jelovnik a luk ide u hranu pa kao',
     'Jel znas da se otvorio KFC u BIGU???',
-    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
+    'BIG KAHUNA BURGER ili ti ROYAAALE WITH CHEESE',
+    'Jel neko za CHESS?'
 ] as const
 
 const EVENING = [
     'Dobro veče.',
     'Veče je jbg. Baš voliš ovu aplikaciju?',
+    'Tip: Postoji Tab za PIVO, klikni.',
     'Večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
-    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
+    'Nemoj da gasis TV jel vidis da gledam aktuelnosti (˶˃ ᵕ ˂˶)',
 ] as const
 
 const NIGHT = [
     '{name}, baaš voliš ovu aplikaciju?',
     '{name}, tri je ujutru covjece.',
     'Poz, {name}.',
-    'Kuvarica sanja sarmu. Ti sanjaš jelovnik. Nešto se poklapa.',
-    'Jedini ko je sada budan pored tebe je ovaj server.',
-    'NIKAD NE KLIKCI JELOVNIK VISE OD 10 PUTA U 3AM, SCARY (PHOTO) (VIDEO)',
 ] as const
 
 const DAY_TAGLINES: Record<number, readonly string[]> = {
-    1: ['Ponedeljak. kafica, cigarica, dr..uzenje?', 'Ponedeljak, pa utorak, pa sreda...'],
+    1: ['Ponedeljak, pa utorak, pa sreda...'],
     2: ['Utorak. Utorkom bas ne mogu.'],
-    3: ['Sreda je. Pola puta do vikenda.'],
+    3: ['Sreda. Gde je Nestorovic?'],
     4: ['Četvrtak je skoro petak. Skoro.'],
     5: ['PETAK. Zna se šta se jede petkom.'],
     6: ['Subota, a ti gledaš jelovnik? Respect.'],

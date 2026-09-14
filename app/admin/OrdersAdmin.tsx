@@ -23,29 +23,36 @@ import {
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
+import { fullName } from '@/lib/users'
 
 interface Row {
     orderId: number
     userId: number
     username: string
+    firstName: string
+    lastName: string
     mealId: number | null
     mealName: string | null
     category: string | null
     price: string | null
     customText: string | null
     note: string | null
+    withSoup: boolean
     quantity: number
 }
 
 interface Person {
     username: string
+    name: string
     note: string | null
+    withSoup: boolean
     qty: number
 }
 interface Group {
     name: string
     price: string
     portions: number
+    soupPortions: number
     people: Person[]
 }
 
@@ -85,11 +92,12 @@ export default function OrdersAdmin() {
             if (r.mealId === null) continue
             let g = map.get(r.mealId)
             if (!g) {
-                g = { name: r.mealName || '-', price: r.price || '0', portions: 0, people: [] }
+                g = { name: r.mealName || '-', price: r.price || '0', portions: 0, soupPortions: 0, people: [] }
                 map.set(r.mealId, g)
             }
             g.portions += r.quantity
-            g.people.push({ username: r.username, note: r.note, qty: r.quantity })
+            if (r.withSoup) g.soupPortions += r.quantity
+            g.people.push({ username: r.username, name: fullName(r), note: r.note, withSoup: r.withSoup, qty: r.quantity })
         }
         return Array.from(map.values()).sort((a, b) => b.portions - a.portions)
     }, [rows])
@@ -106,17 +114,23 @@ export default function OrdersAdmin() {
 
     const totalPortions = grouped.reduce((a, g) => a + g.portions, 0) + customs.reduce((a, c) => a + c.quantity, 0)
     const uniqueUsers = new Set(rows.map((r) => r.userId)).size
+    const totalSoups = grouped.reduce((a, g) => a + g.soupPortions, 0)
+
+    function soupSuffix(g: Group): string {
+        return g.soupPortions > 0 ? ` (${g.soupPortions} sa čorbom)` : ''
+    }
 
     function buildSummary(): string {
         const lines: string[] = []
         lines.push(`Porudžbine za ${formatDateLong(fromISODate(date))}`)
         lines.push('')
         for (const g of grouped) {
-            lines.push(`${g.name} - ${g.portions}`)
+            lines.push(`${g.name} - ${g.portions}${soupSuffix(g)}`)
             for (const p of g.people) {
                 const q = p.qty > 1 ? ` (x${p.qty})` : ''
+                const s = p.withSoup ? ' + čorba' : ''
                 const n = p.note ? ` - ${p.note}` : ''
-                lines.push(`   - ${p.username}${q}${n}`)
+                lines.push(`   - ${p.name}${q}${s}${n}`)
             }
         }
         if (customGrouped.length > 0) {
@@ -124,11 +138,11 @@ export default function OrdersAdmin() {
             lines.push('Sopstvene porudžbine:')
             for (const c of customs) {
                 const q = c.quantity > 1 ? ` (x${c.quantity})` : ''
-                lines.push(`   - ${c.username}: ${c.customText}${q}`)
+                lines.push(`   - ${fullName(c)}: ${c.customText}${q}`)
             }
         }
         lines.push('')
-        lines.push(`Ukupno porcija: ${totalPortions} - Korisnika: ${uniqueUsers}`)
+        lines.push(`Ukupno porcija: ${totalPortions} - Korisnika: ${uniqueUsers}${totalSoups > 0 ? ` - Čorbi uz suvo: ${totalSoups}` : ''}`)
         return lines.join('\n')
     }
 
@@ -137,13 +151,13 @@ export default function OrdersAdmin() {
         lines.push(`Porudžbina za ${formatDateLong(fromISODate(date))}`)
         lines.push('')
         for (const g of grouped) {
-            lines.push(`${g.name} - ${g.portions}`)
+            lines.push(`${g.name} - ${g.portions}${soupSuffix(g)}`)
         }
         for (const c of customGrouped) {
             lines.push(`${c.text} - ${c.qty}`)
         }
         lines.push('')
-        lines.push(`Ukupno: ${totalPortions}`)
+        lines.push(`Ukupno: ${totalPortions}${totalSoups > 0 ? ` (+ ${totalSoups} čorbi uz suvo)` : ''}`)
         return lines.join('\n')
     }
 
@@ -153,12 +167,13 @@ export default function OrdersAdmin() {
     }
 
     function downloadCsv() {
-        const header = 'Jelo,Kolicina,Korisnik,Napomena\n'
+        const header = 'Jelo,Kolicina,Ime i prezime,Korisnicko ime,Napomena\n'
         const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`
         const body = rows
             .map((r) => {
                 const jelo = r.mealName || `Sopstveno: ${r.customText || ''}`
-                return [esc(jelo), r.quantity, esc(r.username), esc(r.note || '')].join(',')
+                const nap = [r.withSoup ? 'čorba' : '', r.note || ''].filter(Boolean).join('; ')
+                return [esc(jelo), r.quantity, esc(fullName(r)), esc(r.username), esc(nap)].join(',')
             })
             .join('\n')
         const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' })
@@ -270,7 +285,7 @@ export default function OrdersAdmin() {
 
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                                             {g.people.map((p) => {
-                                                const label = p.qty > 1 ? `${p.username} x${p.qty}` : p.username
+                                                const label = `${p.name}${p.qty > 1 ? ` x${p.qty}` : ''}${p.withSoup ? ' + čorba' : ''}`
                                                 return p.note ? (
                                                     <Tooltip key={p.username} title={p.note}>
                                                         <Chip
@@ -293,7 +308,7 @@ export default function OrdersAdmin() {
                                                     {withNotes.map((p) => (
                                                         <Typography key={p.username} variant="caption" color="text.secondary">
                                                             <Box component="b" sx={{ color: 'text.primary' }}>
-                                                                {p.username}:
+                                                                {p.name}:
                                                             </Box>{' '}
                                                             {p.note}
                                                         </Typography>
@@ -315,7 +330,7 @@ export default function OrdersAdmin() {
                                         {customs.map((c) => (
                                             <Typography key={c.orderId} variant="body2">
                                                 <Box component="b" sx={{ color: 'primary.main' }}>
-                                                    {c.username}
+                                                    {fullName(c)}
                                                 </Box>
                                                 {c.quantity > 1 ? ` (x${c.quantity})` : ''}: {c.customText}
                                             </Typography>

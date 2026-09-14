@@ -1,12 +1,29 @@
 import { NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/session'
+import { clearAuthCookie, getCurrentUser } from '@/lib/session'
+import { getPublicUserById } from '@/services/users.service'
 
 export async function GET() {
-    const user = await getCurrentUser()
+    const token = await getCurrentUser()
+    if (!token) return NextResponse.json({ user: null }, { status: 200 })
+
+    // Čitamo iz baze da bi ime/prezime i uloga uvek bili sveži (token nosi samo minimum).
+    const user = await getPublicUserById(token.sub)
     if (!user) {
-        return NextResponse.json({ user: null }, { status: 200 })
+        // Token je validan, ali korisnik više ne postoji (npr. posle reseta baze) – brišemo kolačić
+        // da proxy ne bi mislio da je neko prijavljen.
+        const res = NextResponse.json({ user: null, reason: 'missing' }, { status: 200 })
+        clearAuthCookie(res)
+        return res
     }
+
     return NextResponse.json({
-        user: { id: user.sub, username: user.username, role: user.role },
+        user: {
+            id: user.id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            createdAt: user.createdAt,
+        },
     })
 }

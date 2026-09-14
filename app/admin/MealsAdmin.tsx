@@ -3,6 +3,7 @@
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import EditIcon from '@mui/icons-material/Edit'
+import TuneIcon from '@mui/icons-material/Tune'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import {
     Alert,
@@ -18,16 +19,21 @@ import {
     Divider,
     FormControlLabel,
     IconButton,
+    InputAdornment,
     MenuItem,
     Skeleton,
+    Snackbar,
     Stack,
     Switch,
     TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Tooltip,
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { CATEGORIES, WEEKDAYS } from '@/lib/constants'
+import { CATEGORIES, DEFAULT_PRICES } from '@/lib/constants'
+import { DEFAULT_PRICING, type PricingSettings, rsd, type SubsidyMode, subsidyFor, subsidyLabel } from '@/lib/pricing'
 
 interface Meal {
     id: number
@@ -35,7 +41,6 @@ interface Meal {
     description: string | null
     note: string | null
     price: string
-    day: number | null
     category: 'kuvano' | 'suvo'
     isPosno: boolean
     active: boolean
@@ -46,7 +51,6 @@ type FormState = {
     description: string
     note: string
     price: string
-    day: string
     category: 'kuvano' | 'suvo'
     isPosno: boolean
     active: boolean
@@ -56,28 +60,52 @@ const emptyForm: FormState = {
     name: '',
     description: '',
     note: '',
-    price: '500',
-    day: '1',
+    price: String(DEFAULT_PRICES.kuvano),
     category: 'kuvano',
     isPosno: false,
     active: true,
 }
 
+type PricingForm = { subsidyMode: SubsidyMode; subsidyPercent: string; subsidyAmount: string; soupPrice: string }
+
+function toForm(p: PricingSettings): PricingForm {
+    return {
+        subsidyMode: p.subsidyMode,
+        subsidyPercent: String(p.subsidyPercent),
+        subsidyAmount: String(p.subsidyAmount),
+        soupPrice: String(p.soupPrice),
+    }
+}
+
+/** Podrazumevana cena za kombinaciju kategorije i posnog. */
+function defaultPrice(category: 'kuvano' | 'suvo', isPosno: boolean): number {
+    if (isPosno) return DEFAULT_PRICES.posno
+    return DEFAULT_PRICES[category]
+}
+
 export default function MealsAdmin() {
     const [meals, setMeals] = useState<Meal[]>([])
+    const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
+    const [pricingForm, setPricingForm] = useState<PricingForm>(toForm(DEFAULT_PRICING))
+    const [savingPricing, setSavingPricing] = useState(false)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [toast, setToast] = useState('')
     const [open, setOpen] = useState(false)
     const [editingId, setEditingId] = useState<number | null>(null)
     const [form, setForm] = useState<FormState>(emptyForm)
+    const [priceTouched, setPriceTouched] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await fetch('/api/meals')
-            const data = await res.json()
-            setMeals(data.meals || [])
+            const [mRes, sRes] = await Promise.all([fetch('/api/meals'), fetch('/api/admin/settings')])
+            const [m, s] = await Promise.all([mRes.json(), sRes.json()])
+            setMeals(m.meals || [])
+            const p: PricingSettings = s.pricing || DEFAULT_PRICING
+            setPricing(p)
+            setPricingForm(toForm(p))
         } catch {
             setError('Greška pri učitavanju jela.')
         } finally {
@@ -92,6 +120,7 @@ export default function MealsAdmin() {
     function openNew() {
         setEditingId(null)
         setForm(emptyForm)
+        setPriceTouched(false)
         setOpen(true)
     }
 
@@ -102,28 +131,33 @@ export default function MealsAdmin() {
             description: m.description || '',
             note: m.note || '',
             price: String(Number(m.price)),
-            day: m.day === null ? '' : String(m.day),
             category: m.category,
             isPosno: m.isPosno,
             active: m.active,
         })
+        setPriceTouched(true)
         setOpen(true)
+    }
+
+    /** Dok admin ne dirne cenu, ona prati podrazumevanu za kategoriju/posno. */
+    function setCategoryOrPosno(patch: Partial<Pick<FormState, 'category' | 'isPosno'>>) {
+        setForm((f) => {
+            const next = { ...f, ...patch }
+            if (!priceTouched) next.price = String(defaultPrice(next.category, next.isPosno))
+            return next
+        })
     }
 
     async function save() {
         setSaving(true)
         setError('')
         try {
-            const payload = {
-                ...form,
-                day: form.day === '' ? null : Number(form.day),
-            }
             const url = editingId ? `/api/meals/${editingId}` : '/api/meals'
             const method = editingId ? 'PATCH' : 'POST'
             const res = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(form),
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju.')
@@ -137,17 +171,41 @@ export default function MealsAdmin() {
     }
 
     async function remove(id: number) {
-        if (!confirm('Obrisati ovo jelo? Time se brišu i sve porudžbine tog jela.')) return
+        if (!confirm('Obrisati ovo jelo? Time se brišu i sve porudžbine tog jela, a korisnici koji su ga naručili dobijaju obaveštenje.'))
+            return
         await fetch(`/api/meals/${id}`, { method: 'DELETE' })
         await load()
     }
 
-    const grouped = WEEKDAYS.map((wd) => ({
-        label: wd.label,
-        meals: meals.filter((m) => m.category === 'kuvano' && m.day === wd.value),
-    }))
+    async function savePricing() {
+        setSavingPricing(true)
+        setError('')
+        try {
+            const res = await fetch('/api/admin/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subsidyMode: pricingForm.subsidyMode,
+                    subsidyPercent: Number(pricingForm.subsidyPercent),
+                    subsidyAmount: Number(pricingForm.subsidyAmount),
+                    soupPrice: Number(pricingForm.soupPrice),
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju podešavanja.')
+            setPricing(data.pricing)
+            setPricingForm(toForm(data.pricing))
+            setToast('Podešavanja cena su sačuvana.')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Greška pri čuvanju podešavanja.')
+        } finally {
+            setSavingPricing(false)
+        }
+    }
+
+    const kuvana = meals.filter((m) => m.category === 'kuvano')
     const suva = meals.filter((m) => m.category === 'suvo')
-    const bezDana = meals.filter((m) => m.category === 'kuvano' && m.day === null)
+    const pricingDirty = JSON.stringify(pricingForm) !== JSON.stringify(toForm(pricing))
 
     if (loading) {
         return (
@@ -162,6 +220,93 @@ export default function MealsAdmin() {
 
     return (
         <Box>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
+
+            <Card sx={{ mb: 3 }}>
+                <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+                    <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
+                        <TuneIcon color="primary" fontSize="small" />
+                        <Typography variant="h6">Cene i popust</Typography>
+                    </Stack>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'flex-start' } }}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                            <ToggleButtonGroup
+                                exclusive
+                                size="small"
+                                value={pricingForm.subsidyMode}
+                                onChange={(_, v: SubsidyMode | null) => v && setPricingForm((p) => ({ ...p, subsidyMode: v }))}
+                                aria-label="Način obračuna popusta"
+                                sx={{ mt: 0.25 }}
+                            >
+                                <ToggleButton value="percent">%</ToggleButton>
+                                <ToggleButton value="amount">RSD</ToggleButton>
+                            </ToggleButtonGroup>
+                            {pricingForm.subsidyMode === 'percent' ? (
+                                <TextField
+                                    label="Firma pokriva"
+                                    type="number"
+                                    size="small"
+                                    value={pricingForm.subsidyPercent}
+                                    onChange={(e) => setPricingForm((p) => ({ ...p, subsidyPercent: e.target.value }))}
+                                    slotProps={{
+                                        input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                                        htmlInput: { min: 0, max: 100 },
+                                    }}
+                                    helperText="Procenat cene jedne porcije dnevno."
+                                    sx={{ minWidth: 180 }}
+                                />
+                            ) : (
+                                <TextField
+                                    label="Firma pokriva"
+                                    type="number"
+                                    size="small"
+                                    value={pricingForm.subsidyAmount}
+                                    onChange={(e) => setPricingForm((p) => ({ ...p, subsidyAmount: e.target.value }))}
+                                    slotProps={{
+                                        input: { endAdornment: <InputAdornment position="end">RSD</InputAdornment> },
+                                        htmlInput: { min: 0 },
+                                    }}
+                                    helperText="Fiksan iznos po jednoj porciji dnevno."
+                                    sx={{ minWidth: 180 }}
+                                />
+                            )}
+                        </Stack>
+                        <TextField
+                            label="Cena čorbe uz suvi obrok"
+                            type="number"
+                            size="small"
+                            value={pricingForm.soupPrice}
+                            onChange={(e) => setPricingForm((p) => ({ ...p, soupPrice: e.target.value }))}
+                            slotProps={{
+                                input: { endAdornment: <InputAdornment position="end">RSD</InputAdornment> },
+                                htmlInput: { min: 0 },
+                            }}
+                            helperText="Uz kuvano jelo čorba je uključena u cenu."
+                            sx={{ minWidth: 220 }}
+                        />
+                        <Button
+                            variant="contained"
+                            onClick={savePricing}
+                            disabled={savingPricing || !pricingDirty}
+                            sx={{ mt: { md: 0.25 } }}
+                        >
+                            {savingPricing ? 'Čuvanje…' : 'Sačuvaj'}
+                        </Button>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        Primer sa trenutnim podešavanjem ({subsidyLabel(pricing)}): kuvano {rsd(DEFAULT_PRICES.kuvano)} → korisnik plaća{' '}
+                        {rsd(DEFAULT_PRICES.kuvano - subsidyFor(DEFAULT_PRICES.kuvano, pricing))}; suvo {rsd(DEFAULT_PRICES.suvo)} + čorba{' '}
+                        {rsd(pricing.soupPrice)} → korisnik plaća{' '}
+                        {rsd(DEFAULT_PRICES.suvo + pricing.soupPrice - subsidyFor(DEFAULT_PRICES.suvo + pricing.soupPrice, pricing))}. Svaka
+                        dodatna porcija u istom danu plaća se u celosti.
+                    </Typography>
+                </CardContent>
+            </Card>
+
             <Stack direction="row" spacing={2} sx={{ mb: 2.5, justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Jela ({meals.length})</Typography>
                 <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
@@ -169,36 +314,18 @@ export default function MealsAdmin() {
                 </Button>
             </Stack>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
-
             <Stack spacing={3}>
-                {grouped.map((g) => (
-                    <DaySection key={g.label} label={g.label} count={g.meals.length}>
-                        {g.meals.length === 0 ? (
-                            <EmptyHint text="Nema jela za ovaj dan." />
-                        ) : (
-                            <Stack spacing={1}>
-                                {g.meals.map((m) => (
-                                    <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
-                                ))}
-                            </Stack>
-                        )}
-                    </DaySection>
-                ))}
-
-                {bezDana.length > 0 && (
-                    <DaySection label="Kuvano - svaki dan" count={bezDana.length}>
+                <DaySection label="Kuvana jela (raspoređuju se po danima u tabu Raspored)" count={kuvana.length}>
+                    {kuvana.length === 0 ? (
+                        <EmptyHint text="Nema unetih kuvanih jela." />
+                    ) : (
                         <Stack spacing={1}>
-                            {bezDana.map((m) => (
+                            {kuvana.map((m) => (
                                 <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
                             ))}
                         </Stack>
-                    </DaySection>
-                )}
+                    )}
+                </DaySection>
 
                 <DaySection label="Suvi obrok (dostupno svaki dan)" count={suva.length}>
                     {suva.length === 0 ? (
@@ -235,7 +362,7 @@ export default function MealsAdmin() {
                             minRows={2}
                         />
                         <TextField
-                            label="Pomoćna napomena (interno / dodatna info)"
+                            label="Pomoćna napomena (dodatna info)"
                             value={form.note}
                             onChange={(e) => setForm({ ...form, note: e.target.value })}
                             fullWidth
@@ -243,17 +370,10 @@ export default function MealsAdmin() {
                         />
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                             <TextField
-                                label="Cena (RSD)"
-                                type="number"
-                                value={form.price}
-                                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                                fullWidth
-                            />
-                            <TextField
                                 select
                                 label="Kategorija"
                                 value={form.category}
-                                onChange={(e) => setForm({ ...form, category: e.target.value as 'kuvano' | 'suvo' })}
+                                onChange={(e) => setCategoryOrPosno({ category: e.target.value as 'kuvano' | 'suvo' })}
                                 fullWidth
                             >
                                 {CATEGORIES.map((c) => (
@@ -262,26 +382,22 @@ export default function MealsAdmin() {
                                     </MenuItem>
                                 ))}
                             </TextField>
+                            <TextField
+                                label="Puna cena (RSD)"
+                                type="number"
+                                value={form.price}
+                                onChange={(e) => {
+                                    setPriceTouched(true)
+                                    setForm({ ...form, price: e.target.value })
+                                }}
+                                fullWidth
+                                helperText={`Pre popusta firme (${subsidyLabel(pricing)}). Podrazumevano: kuvano ${DEFAULT_PRICES.kuvano}, suvo ${DEFAULT_PRICES.suvo}, posno ${DEFAULT_PRICES.posno}.`}
+                            />
                         </Stack>
-                        <TextField
-                            select
-                            label="Dan"
-                            value={form.day}
-                            onChange={(e) => setForm({ ...form, day: e.target.value })}
-                            fullWidth
-                            helperText="Izaberi Svaki dan za suvi obrok koji nije vezan za određeni dan."
-                        >
-                            <MenuItem value="">Svaki dan</MenuItem>
-                            {WEEKDAYS.map((wd) => (
-                                <MenuItem key={wd.value} value={String(wd.value)}>
-                                    {wd.label}
-                                </MenuItem>
-                            ))}
-                        </TextField>
                         <Stack direction="row" spacing={3}>
                             <FormControlLabel
                                 control={
-                                    <Switch checked={form.isPosno} onChange={(e) => setForm({ ...form, isPosno: e.target.checked })} />
+                                    <Switch checked={form.isPosno} onChange={(e) => setCategoryOrPosno({ isPosno: e.target.checked })} />
                                 }
                                 label="Posno"
                             />
@@ -290,6 +406,11 @@ export default function MealsAdmin() {
                                 label="Aktivno (vidljivo korisnicima)"
                             />
                         </Stack>
+                        {form.category === 'kuvano' && (
+                            <Alert severity="info" variant="outlined">
+                                Uz kuvano jelo čorba je uključena u cenu – korisnici to vide kao oznaku, ne moraš da je unosiš u opis.
+                            </Alert>
+                        )}
                     </Stack>
                 </DialogContent>
                 <Divider />
@@ -302,6 +423,17 @@ export default function MealsAdmin() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <Snackbar
+                open={!!toast}
+                autoHideDuration={2500}
+                onClose={() => setToast('')}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert severity="success" variant="filled" onClose={() => setToast('')}>
+                    {toast}
+                </Alert>
+            </Snackbar>
         </Box>
     )
 }
@@ -353,7 +485,7 @@ function MealRow({ meal, onEdit, onDelete }: { meal: Meal; onEdit: () => void; o
                         <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                             <Typography sx={{ fontWeight: 600 }}>{meal.name}</Typography>
                             <Chip
-                                label={`${Number(meal.price).toLocaleString('sr-RS')} RSD`}
+                                label={rsd(Number(meal.price))}
                                 size="small"
                                 variant="outlined"
                                 sx={{ color: 'primary.main', borderColor: 'primary.main' }}

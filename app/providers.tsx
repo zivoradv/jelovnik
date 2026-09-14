@@ -6,6 +6,7 @@ import CssBaseline from '@mui/material/CssBaseline'
 import { ThemeProvider } from '@mui/material/styles'
 import { type ReactNode, Suspense } from 'react'
 import { AuthProvider } from './auth-context'
+import BeerPrompt from './components/BeerPrompt'
 import NavBar from './components/NavBar'
 import { FunProvider } from './fun-context'
 import theme from './theme'
@@ -39,6 +40,7 @@ export default function Providers({ children }: { children: ReactNode }) {
                     <Suspense fallback={null}>
                         <NavBar />
                     </Suspense>
+                    <BeerPrompt />
 
                     <Box component="main" sx={{ minHeight: '100dvh' }}>
                         <Container maxWidth="lg" sx={{ py: { xs: 2.5, sm: 4 } }}>

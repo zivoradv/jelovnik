@@ -7,12 +7,18 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import { Alert, Box, Button, Card, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { type FormEvent, Suspense, useState } from 'react'
 import { useAuth } from '../auth-context'
 import BrandMark from '../components/BrandMark'
 import ThemeToggle from '../components/ThemeToggle'
 
+/** Dozvoljeni su samo relativni putevi unutar aplikacije; /login, /register i /api nikad. */
+function safeNext(next: string | null): string {
+    if (!next?.startsWith('/') || next.startsWith('//')) return '/'
+    if (next.startsWith('/login') || next.startsWith('/register') || next.startsWith('/api')) return '/'
+    return next
+}
 export default function LoginPage() {
     return (
         <Suspense fallback={null}>
@@ -23,7 +29,6 @@ export default function LoginPage() {
 
 function LoginForm() {
     const { login } = useAuth()
-    const router = useRouter()
     const params = useSearchParams()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
@@ -37,8 +42,9 @@ function LoginForm() {
         setBusy(true)
         try {
             await login(username, password)
-            router.replace(params.get('next') || '/')
-            router.refresh()
+            // puna navigacija (ne router.replace) da bi proxy video svež kolačić i da ne bi ostao keš klijentskog rutera
+            window.location.assign(safeNext(params.get('next')))
+            return
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Greška pri prijavi.')
         } finally {

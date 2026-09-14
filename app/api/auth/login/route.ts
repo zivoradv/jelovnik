@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
         }
 
         const res = NextResponse.json({ user })
-        await setAuthCookie(res, { sub: user.id, username: user.username, role: user.role })
+        await setAuthCookie(req, res, { sub: user.id, username: user.username, role: user.role })
         return res
     } catch {
         return NextResponse.json({ error: 'Greška pri prijavi.' }, { status: 500 })

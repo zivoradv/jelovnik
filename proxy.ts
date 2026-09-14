@@ -3,7 +3,7 @@ import { verifyToken } from '@/lib/auth'
 import { COOKIE_NAME } from '@/lib/constants'
 
 const PUBLIC_PATHS = ['/login', '/register']
-const PUBLIC_API = ['/api/auth/login', '/api/auth/register']
+const PUBLIC_API = ['/api/auth/login', '/api/auth/register', '/api/cron']
 
 export async function proxy(req: NextRequest) {
     const { pathname } = req.nextUrl

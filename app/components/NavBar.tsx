@@ -4,9 +4,12 @@ import CloseIcon from '@mui/icons-material/Close'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
+import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
 import SettingsIcon from '@mui/icons-material/Settings'
+import SportsBarIcon from '@mui/icons-material/SportsBar'
+import { Tooltip } from '@mui/material'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -27,9 +30,11 @@ import Typography from '@mui/material/Typography'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { type ReactNode, useRef, useState } from 'react'
+import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
 import { useFun } from '../fun-context'
 import BrandMark from './BrandMark'
+import NotificationBell from './NotificationBell'
 import ThemeToggle from './ThemeToggle'
 
 type NavItem = {
@@ -37,11 +42,14 @@ type NavItem = {
     label: string
     icon: ReactNode
     adminOnly?: boolean
+    mobileOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
     { href: '/', label: 'Meni', icon: <RestaurantMenuIcon /> },
     { href: '/dug', label: 'Moj dug', icon: <ReceiptLongIcon /> },
+    { href: '/pivo', label: 'Pivo', icon: <SportsBarIcon /> },
+    { href: '/profil', label: 'Profil', icon: <PersonOutlinedIcon />, mobileOnly: true },
     {
         href: '/admin?tab=porudzbine',
         label: 'Porudžbine',
@@ -49,7 +57,7 @@ const NAV_ITEMS: NavItem[] = [
         adminOnly: true,
     },
     {
-        href: '/admin?tab=jela',
+        href: '/admin?tab=raspored',
         label: 'Administracija',
         icon: <SettingsIcon />,
         adminOnly: true,
@@ -73,12 +81,14 @@ export default function NavBar() {
         if (pathname !== path) return false
         if (!query) return true
         const tab = new URLSearchParams(query).get('tab')
-        const current = searchParams.get('tab') || 'jela'
+        const current = searchParams.get('tab') || 'raspored'
         return tab === current
     }
 
     const items = NAV_ITEMS.filter((i) => !i.adminOnly || user?.role === 'admin')
-    const initial = user?.username?.[0]?.toUpperCase() ?? '?'
+    const initial = user ? initials(user) : '?'
+    const displayName = user ? fullName(user) : ''
+    const desktopItems = items.filter((i) => !i.mobileOnly)
 
     function onLogoClick() {
         const now = Date.now()
@@ -127,7 +137,7 @@ export default function NavBar() {
                         {user && (
                             <>
                                 <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', md: 'flex' } }}>
-                                    {items.map((item) => {
+                                    {desktopItems.map((item) => {
                                         const active = isActive(item.href)
                                         return (
                                             <Button
@@ -164,31 +174,39 @@ export default function NavBar() {
                             <ThemeToggle />
                         </Box>
 
+                        {user && <NotificationBell />}
+
                         {user && (
                             <>
                                 <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
-                                    <Chip
-                                        avatar={
-                                            <Avatar
-                                                sx={(t) => ({
-                                                    bgcolor: `${t.vars.palette.primary.main} !important`,
-                                                    color: `${t.vars.palette.primary.contrastText} !important`,
-                                                    fontWeight: 700,
-                                                    fontSize: '0.8rem',
-                                                })}
-                                            >
-                                                {initial}
-                                            </Avatar>
-                                        }
-                                        label={user.username}
-                                        variant="outlined"
-                                        sx={{ pr: 0.5 }}
-                                    />
-                                    <IconButton onClick={() => logout()} aria-label="Odjava" sx={{ color: 'text.secondary' }}>
-                                        <LogoutIcon />
-                                    </IconButton>
+                                    <Tooltip title="Idi do profila" placement="bottom">
+                                        <Chip
+                                            component={Link}
+                                            href="/profil"
+                                            clickable
+                                            avatar={
+                                                <Avatar
+                                                    sx={(t) => ({
+                                                        bgcolor: `${t.vars.palette.primary.main} !important`,
+                                                        color: `${t.vars.palette.primary.contrastText} !important`,
+                                                        fontWeight: 700,
+                                                        fontSize: '0.8rem',
+                                                    })}
+                                                >
+                                                    {initial}
+                                                </Avatar>
+                                            }
+                                            label={displayName}
+                                            variant="outlined"
+                                            sx={{ pr: 0.5 }}
+                                        />
+                                    </Tooltip>
+                                    <Tooltip title="Odjavi se" placement="bottom">
+                                        <IconButton onClick={() => logout()} aria-label="Odjava" sx={{ color: 'text.secondary' }}>
+                                            <LogoutIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                 </Stack>
-
                                 <IconButton
                                     edge="end"
                                     onClick={() => setDrawerOpen(true)}
@@ -250,10 +268,10 @@ export default function NavBar() {
                             </Avatar>
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography sx={{ fontWeight: 600 }} noWrap>
-                                    {user.username}
+                                    {displayName}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    {user.role === 'admin' ? 'Administrator' : 'Korisnik'}
+                                    @{user.username} · {user.role === 'admin' ? 'Administrator' : 'Korisnik'}
                                 </Typography>
                             </Box>
                         </Stack>

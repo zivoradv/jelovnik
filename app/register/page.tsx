@@ -7,7 +7,6 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import { Alert, Box, Button, Card, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { useAuth } from '../auth-context'
 import BrandMark from '../components/BrandMark'
@@ -15,7 +14,8 @@ import ThemeToggle from '../components/ThemeToggle'
 
 export default function RegisterPage() {
     const { register } = useAuth()
-    const router = useRouter()
+    const [firstName, setFirstName] = useState('')
+    const [lastName, setLastName] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [password2, setPassword2] = useState('')
@@ -34,9 +34,9 @@ export default function RegisterPage() {
         }
         setBusy(true)
         try {
-            await register(username, password)
-            router.replace('/')
-            router.refresh()
+            await register({ username, password, firstName, lastName })
+            window.location.assign('/')
+            return
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Greška pri registraciji.')
         } finally {
@@ -81,14 +81,34 @@ export default function RegisterPage() {
                     <Stack spacing={2}>
                         {error && <Alert severity="error">{error}</Alert>}
 
+                        <Stack direction="row" spacing={1.5}>
+                            <TextField
+                                label="Ime"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                autoFocus
+                                required
+                                fullWidth
+                                autoComplete="given-name"
+                            />
+                            <TextField
+                                label="Prezime"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                required
+                                fullWidth
+                                autoComplete="family-name"
+                            />
+                        </Stack>
+
                         <TextField
                             label="Korisničko ime"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            autoFocus
                             required
                             fullWidth
                             autoComplete="username"
+                            helperText="Jedinstveno; 3–30 znakova (slova, brojevi, tačka, crtica)"
                             slotProps={{
                                 input: {
                                     startAdornment: (

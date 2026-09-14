@@ -153,9 +153,9 @@ export function FunProvider({ children }: { children: ReactNode }) {
             />
             <Snackbar
                 open={message !== null}
-                autoHideDuration={4000}
+                autoHideDuration={6000}
                 onClose={() => setMessage(null)}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             >
                 <Alert severity="info" variant="filled" onClose={() => setMessage(null)}>
                     {message}

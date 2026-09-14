@@ -71,11 +71,13 @@ html {
     outline-color: rgba(232, 155, 149, 0.7);
 }
 
-html.kafana body {
+/* filter ide na html, ne na body: filter na body pravi containing block,
+   pa bi position: fixed (MUI Dialog, Snackbar) skrolovao sa stranicom. */
+html.kafana {
     filter: sepia(0.45) saturate(1.15) contrast(1.05);
 }
 
-html.kafana body::after {
+html.kafana::after {
     content: "";
     position: fixed;
     inset: 0;

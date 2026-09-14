@@ -8,6 +8,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import EditNoteIcon from '@mui/icons-material/EditNote'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
+import RamenDiningIcon from '@mui/icons-material/RamenDining'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import RemoveIcon from '@mui/icons-material/Remove'
@@ -19,9 +20,11 @@ import {
     ButtonBase,
     Card,
     CardContent,
+    Checkbox,
     Chip,
     CircularProgress,
     Divider,
+    FormControlLabel,
     IconButton,
     Skeleton,
     Snackbar,
@@ -34,7 +37,9 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
+import { deadlineLabel, firstOrderableWorkday, isOrderingOpen } from '@/lib/deadline'
 import { customTextReaction, EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
+import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, unitPrice } from '@/lib/pricing'
 import { useAuth } from './auth-context'
 import { useFun } from './fun-context'
 
@@ -44,7 +49,6 @@ interface Meal {
     description: string | null
     note: string | null
     price: string
-    day: number | null
     category: 'kuvano' | 'suvo'
     isPosno: boolean
 }
@@ -54,6 +58,7 @@ interface OrderRow {
     mealId: number | null
     customText: string | null
     note: string | null
+    withSoup: boolean
     quantity: number
 }
 
@@ -63,26 +68,19 @@ function todayMidnight(): Date {
     return d
 }
 
-function rsd(n: number) {
-    return `${n.toLocaleString('sr-RS')} RSD`
-}
-
 export default function HomePage() {
     const { user, loading: authLoading } = useAuth()
     const { confetti } = useFun()
 
-    const initialDate = useMemo(() => {
-        const t = todayMidnight()
-        const dow = t.getDay()
-        if (dow === 0) return addDays(t, 1)
-        if (dow === 6) return addDays(t, 2)
-        return t
-    }, [])
+    // podrazumevano: prvi radni dan za koji rok (dan ranije do 17h) još nije istekao
+    const initialDate = useMemo(() => firstOrderableWorkday(), [])
 
     const [weekAnchor, setWeekAnchor] = useState<Date>(initialDate)
     const [selectedDate, setSelectedDate] = useState<string>(toISODate(initialDate))
 
     const [menu, setMenu] = useState<Meal[]>([])
+    const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
+    const [templateName, setTemplateName] = useState<string | null>(null)
     const [counts, setCounts] = useState<Record<number, number>>({})
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -93,22 +91,24 @@ export default function HomePage() {
 
     const [quantities, setQuantities] = useState<Record<number, number>>({})
     const [notes, setNotes] = useState<Record<number, string>>({})
+    const [soups, setSoups] = useState<Record<number, boolean>>({})
     const [customItems, setCustomItems] = useState<string[]>([])
 
     const weekDays = useMemo(() => workdaysOfWeek(weekAnchor), [weekAnchor])
     const selDateObj = fromISODate(selectedDate)
-    const isPast = selDateObj < todayMidnight()
+    const isPast = !isOrderingOpen(selectedDate)
 
     const loadDay = useCallback(async (dateStr: string) => {
         setLoading(true)
         setError('')
         try {
-            const dow = fromISODate(dateStr).getDay()
-            const [menuRes, ordersRes] = await Promise.all([fetch(`/api/meals?day=${dow}`), fetch(`/api/orders?date=${dateStr}`)])
+            const [menuRes, ordersRes] = await Promise.all([fetch(`/api/menu?date=${dateStr}`), fetch(`/api/orders?date=${dateStr}`)])
             const menuData = await menuRes.json()
             const ordersData = await ordersRes.json()
 
             setMenu(menuData.meals || [])
+            setPricing(menuData.pricing || DEFAULT_PRICING)
+            setTemplateName(menuData.templateName ?? null)
 
             const countMap: Record<number, number> = {}
             for (const c of (ordersData.counts || []) as { mealId: number; count: number }[]) {
@@ -119,17 +119,20 @@ export default function HomePage() {
             const mine: OrderRow[] = ordersData.mine || []
             const qty: Record<number, number> = {}
             const noteMap: Record<number, string> = {}
+            const soupMap: Record<number, boolean> = {}
             const customs: string[] = []
             for (const o of mine) {
                 if (o.mealId !== null) {
                     qty[o.mealId] = o.quantity ?? 1
                     if (o.note) noteMap[o.mealId] = o.note
+                    if (o.withSoup) soupMap[o.mealId] = true
                 } else if (o.customText) {
                     customs.push(o.customText)
                 }
             }
             setQuantities(qty)
             setNotes(noteMap)
+            setSoups(soupMap)
             setCustomItems(customs)
         } catch {
             setError('Greška pri učitavanju menija.')
@@ -199,6 +202,7 @@ export default function HomePage() {
                     mealId: Number(mealId),
                     quantity: qty,
                     note: notes[Number(mealId)] || null,
+                    withSoup: Boolean(soups[Number(mealId)]),
                 })),
                 ...customItems
                     .map((t) => t.trim())
@@ -229,17 +233,28 @@ export default function HomePage() {
         () =>
             menu
                 .filter((m) => (quantities[m.id] ?? 0) > 0)
-                .map((m) => ({
-                    id: m.id,
-                    name: m.name,
-                    qty: quantities[m.id],
-                    price: Number(m.price) || 0,
-                })),
-        [menu, quantities],
+                .map((m) => {
+                    const withSoup = m.category === 'suvo' && Boolean(soups[m.id])
+                    return {
+                        id: m.id,
+                        name: m.name,
+                        qty: quantities[m.id],
+                        withSoup,
+                        price: unitPrice({ price: Number(m.price) || 0, withSoup }, pricing),
+                    }
+                }),
+        [menu, quantities, soups, pricing],
     )
     const receiptCustoms = useMemo(() => customItems.map((c) => c.trim()).filter(Boolean), [customItems])
 
-    const totalPrice = useMemo(() => receiptItems.reduce((sum, it) => sum + it.price * it.qty, 0), [receiptItems])
+    const cost = useMemo(
+        () =>
+            computeDayCost(
+                receiptItems.map((it) => ({ price: it.price, quantity: it.qty, withSoup: false })),
+                pricing,
+            ),
+        [receiptItems, pricing],
+    )
     const portionCount = useMemo(
         () => receiptItems.reduce((a, it) => a + it.qty, 0) + receiptCustoms.length,
         [receiptItems, receiptCustoms],
@@ -256,7 +271,7 @@ export default function HomePage() {
     const todayIso = toISODate(todayMidnight())
     const onStartingDay = selectedDate === toISODate(initialDate)
     const selectedDayName = WEEKDAYS.find((w) => w.value === selDateObj.getDay())?.label ?? ''
-    const hello = greeting(user.username, new Date(), helloShift)
+    const hello = greeting(user.firstName || user.username, new Date(), helloShift)
     const earned = badges.filter((b) => b.earned)
 
     return (
@@ -303,7 +318,7 @@ export default function HomePage() {
                         </Typography>
                         {!onStartingDay && (
                             <Button size="small" onClick={goToday} sx={{ py: 0, minHeight: 0 }}>
-                                Nazad na danas
+                                Na prvi otvoren dan
                             </Button>
                         )}
                     </Stack>
@@ -326,7 +341,7 @@ export default function HomePage() {
                         const iso = toISODate(d)
                         const isToday = iso === todayIso
                         const selected = iso === selectedDate
-                        const past = d < todayMidnight()
+                        const past = !isOrderingOpen(iso)
                         return (
                             <ButtonBase
                                 key={iso}
@@ -374,9 +389,13 @@ export default function HomePage() {
             {error && <Alert severity="error">{error}</Alert>}
 
             {isPast ? (
-                <Alert severity="info">Ovaj dan je prošao - porudžbina se više ne može menjati.</Alert>
+                <Alert severity="info">
+                    Rok za {selectedDayName.toLowerCase()} je istekao ({deadlineLabel(selectedDate)}) – porudžbina se više ne može menjati.
+                </Alert>
             ) : (
-                <Alert severity="warning">Obavezno naručivanje obroka dan ranije!</Alert>
+                <Alert severity="warning">
+                    Naručuje se najkasnije dan ranije do 17:00. Rok za {selectedDayName.toLowerCase()}: {deadlineLabel(selectedDate)}.
+                </Alert>
             )}
 
             {loading ? (
@@ -386,37 +405,59 @@ export default function HomePage() {
             ) : (
                 <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
                     <Stack spacing={{ xs: 2.5, sm: 3.5 }} sx={{ flexGrow: 1, minWidth: 0 }}>
-                        {kuvana.length > 0 && (
-                            <Section title="Kuvana jela" count={kuvana.length} icon={<SoupKitchenIcon fontSize="small" />}>
-                                {kuvana.map((m) => (
+                        <Section
+                            title="Kuvana jela"
+                            count={kuvana.length}
+                            icon={<SoupKitchenIcon fontSize="small" />}
+                            hint={kuvana.length > 0 ? 'Uz svako kuvano jelo dobija se čorba' : undefined}
+                        >
+                            {kuvana.length === 0 ? (
+                                <Alert severity="info" variant="outlined" icon={<SoupKitchenIcon fontSize="inherit" />}>
+                                    {templateName
+                                        ? `Za ${selectedDayName.toLowerCase()} u šemi „${templateName}” nema kuvanih jela.`
+                                        : 'Raspored kuvanih jela za ovu nedelju još nije objavljen. Dobićeš obaveštenje čim admin postavi šemu.'}
+                                </Alert>
+                            ) : (
+                                kuvana.map((m) => (
                                     <MealItem
                                         key={m.id}
                                         meal={m}
                                         qty={quantities[m.id] || 0}
                                         count={counts[m.id] || 0}
                                         note={notes[m.id] || ''}
+                                        withSoup={false}
+                                        soupPrice={pricing.soupPrice}
                                         disabled={isPast}
                                         onToggle={() => toggleMeal(m.id)}
                                         onQty={(q) => setQty(m.id, q)}
                                         onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
+                                        onSoup={() => {}}
                                     />
-                                ))}
-                            </Section>
-                        )}
+                                ))
+                            )}
+                        </Section>
 
                         {suva.length > 0 && (
-                            <Section title="Suvi obrok" count={suva.length} icon={<BakeryDiningIcon fontSize="small" />}>
+                            <Section
+                                title="Suvi obrok"
+                                count={suva.length}
+                                icon={<BakeryDiningIcon fontSize="small" />}
+                                hint={`Uz suvi obrok možeš da dodaš čorbu za ${rsd(pricing.soupPrice)}.`}
+                            >
                                 {suva.map((m) => (
                                     <MealItem
                                         key={m.id}
                                         meal={m}
                                         qty={quantities[m.id] || 0}
                                         count={counts[m.id] || 0}
-                                        note={notes[m.id] || ''}
+                                        note=""
+                                        withSoup={Boolean(soups[m.id])}
+                                        soupPrice={pricing.soupPrice}
                                         disabled={isPast}
                                         onToggle={() => toggleMeal(m.id)}
                                         onQty={(q) => setQty(m.id, q)}
-                                        onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
+                                        onNote={() => {}}
+                                        onSoup={(v) => setSoups((s) => ({ ...s, [m.id]: v }))}
                                     />
                                 ))}
                             </Section>
@@ -480,7 +521,7 @@ export default function HomePage() {
                             <ReceiptCard
                                 items={receiptItems}
                                 customs={receiptCustoms}
-                                total={totalPrice}
+                                cost={cost}
                                 portionCount={portionCount}
                                 saving={saving}
                                 onSave={save}
@@ -518,7 +559,7 @@ export default function HomePage() {
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                     {portionCount} porcija
                                 </Typography>
-                                <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{totalPrice > 0 ? rsd(totalPrice) : '-'}</Typography>
+                                <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{cost.toPay > 0 ? rsd(cost.toPay) : '-'}</Typography>
                             </Box>
                             <Button variant="contained" onClick={save} disabled={saving} startIcon={saving ? undefined : <CheckIcon />}>
                                 {saving ? 'Čuvanje...' : 'Sačuvaj'}
@@ -542,17 +583,34 @@ export default function HomePage() {
     )
 }
 
-function Section({ title, count, icon, children }: { title: string; count?: number; icon?: ReactNode; children: ReactNode }) {
+function Section({
+    title,
+    count,
+    icon,
+    hint,
+    children,
+}: {
+    title: string
+    count?: number
+    icon?: ReactNode
+    hint?: string
+    children: ReactNode
+}) {
     return (
         <Box>
-            <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
+            <Stack direction="row" spacing={1} sx={{ mb: hint ? 0.5 : 1.5, alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', color: 'primary.main' }}>{icon}</Box>
                 <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1 }}>
                     {title}
                 </Typography>
-                {count !== undefined && <Chip label={count} size="small" variant="outlined" sx={{ height: 20 }} />}
+                {count !== undefined && count > 0 && <Chip label={count} size="small" variant="outlined" sx={{ height: 20 }} />}
                 <Divider sx={{ flexGrow: 1, ml: 1 }} />
             </Stack>
+            {hint && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, fontStyle: 'italic' }}>
+                    {hint}
+                </Typography>
+            )}
             <Stack spacing={1.5}>{children}</Stack>
         </Box>
     )
@@ -590,14 +648,14 @@ function EmptyMenu({ dayName }: { dayName: string }) {
 function ReceiptCard({
     items,
     customs,
-    total,
+    cost,
     portionCount,
     saving,
     onSave,
 }: {
-    items: { id: number; name: string; qty: number; price: number }[]
+    items: { id: number; name: string; qty: number; price: number; withSoup: boolean }[]
     customs: string[]
-    total: number
+    cost: DayCost
     portionCount: number
     saving: boolean
     onSave: () => void
@@ -625,6 +683,12 @@ function ReceiptCard({
                             <Stack key={it.id} direction="row" spacing={1.5} sx={{ justifyContent: 'space-between' }}>
                                 <Typography variant="body2">
                                     {it.name}
+                                    {it.withSoup && (
+                                        <Typography component="span" variant="body2" color="text.secondary">
+                                            {' '}
+                                            + čorba
+                                        </Typography>
+                                    )}
                                     {it.qty > 1 && (
                                         <Typography component="span" variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
                                             {' '}
@@ -652,20 +716,43 @@ function ReceiptCard({
 
                 <Divider sx={{ my: 1.75, borderStyle: 'dashed' }} />
 
-                <Stack direction="row" sx={{ mb: 0.75, justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">
-                        Porcija
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {portionCount}
-                    </Typography>
+                <Stack spacing={0.5}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">
+                            Porcija
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {portionCount}
+                        </Typography>
+                    </Stack>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">
+                            Puna cena
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {rsd(cost.full)}
+                        </Typography>
+                    </Stack>
+                    {cost.subsidy > 0 && (
+                        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                            <Typography variant="body2" sx={{ color: 'success.main' }}>
+                                Pokriva firma
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                −{rsd(cost.subsidy)}
+                            </Typography>
+                        </Stack>
+                    )}
                 </Stack>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <Typography sx={{ fontWeight: 700 }}>Ukupno</Typography>
+                <Stack direction="row" sx={{ mt: 1, justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <Typography sx={{ fontWeight: 700 }}>Za plaćanje</Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        {rsd(total)}
+                        {rsd(cost.toPay)}
                     </Typography>
                 </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                    Firma pokriva deo cene jedne porcije dnevno; svaka dodatna porcija plaća se u celosti.
+                </Typography>
 
                 <Button
                     fullWidth
@@ -688,23 +775,30 @@ function MealItem({
     qty,
     count,
     note,
+    withSoup,
+    soupPrice,
     disabled,
     onToggle,
     onQty,
     onNote,
+    onSoup,
 }: {
     meal: Meal
     qty: number
     count: number
     note: string
+    withSoup: boolean
+    soupPrice: number
     disabled: boolean
     onToggle: () => void
     onQty: (q: number) => void
     onNote: (v: string) => void
+    onSoup: (v: boolean) => void
 }) {
     const checked = qty > 0
     const price = Number(meal.price) || 0
     const reaction = quantityReaction(qty)
+    const isSuvo = meal.category === 'suvo'
 
     return (
         <Card
@@ -784,6 +878,15 @@ function MealItem({
 
                         <Stack direction="row" spacing={0.75} useFlexGap sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                             {meal.isPosno && <Chip label="posno" size="small" color="success" variant="outlined" />}
+                            {!isSuvo && (
+                                <Chip
+                                    icon={<RamenDiningIcon />}
+                                    label="čorba uključena"
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ color: 'text.secondary' }}
+                                />
+                            )}
                             {count > 0 && (
                                 <Chip
                                     icon={<PeopleAltIcon />}
@@ -843,14 +946,41 @@ function MealItem({
                             </Stack>
                         </Stack>
 
-                        <TextField
-                            fullWidth
-                            size="small"
-                            placeholder="Dodatak / napomena (npr. bez luka)"
-                            value={note}
-                            disabled={disabled}
-                            onChange={(e) => onNote(e.target.value)}
-                        />
+                        {isSuvo ? (
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={withSoup}
+                                        disabled={disabled}
+                                        onChange={(e) => onSoup(e.target.checked)}
+                                        icon={<RamenDiningIcon />}
+                                        checkedIcon={<RamenDiningIcon />}
+                                    />
+                                }
+                                label={
+                                    <Typography variant="body2">
+                                        Dodaj čorbu{' '}
+                                        <Typography
+                                            component="span"
+                                            variant="body2"
+                                            sx={{ ml: 0.5, fontWeight: 700, color: 'primary.main' }}
+                                        >
+                                            +{rsd(soupPrice)}
+                                        </Typography>
+                                    </Typography>
+                                }
+                                sx={{ ml: 0 }}
+                            />
+                        ) : (
+                            <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="Dodatak / napomena (npr. bez luka)"
+                                value={note}
+                                disabled={disabled}
+                                onChange={(e) => onNote(e.target.value)}
+                            />
+                        )}
                     </Stack>
                     {reaction && (
                         <Typography variant="caption" color="secondary.dark" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>

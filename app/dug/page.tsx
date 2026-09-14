@@ -1,40 +1,48 @@
 'use client'
 
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import { Alert, Box, Card, CardContent, Checkbox, Chip, Divider, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import ScheduleIcon from '@mui/icons-material/Schedule'
+import { Alert, Box, Card, CardContent, Chip, Divider, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
+import { useCallback, useEffect, useState } from 'react'
 import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { formatDateLong, fromISODate } from '@/lib/date'
 import { debtRoast } from '@/lib/fun'
+import { rsd } from '@/lib/pricing'
 
 interface DebtRow {
     date: string
+    full: number
+    subsidy: number
     total: number
     mealCount: number
     customCount: number
     paid: boolean
-}
-
-function rsd(n: number) {
-    return `${n.toLocaleString('sr-RS')} RSD`
+    paidAt: string | null
 }
 
 export default function DugPage() {
     const [rows, setRows] = useState<DebtRow[]>([])
+    const [unpaidTotal, setUnpaidTotal] = useState(0)
+    const [paidTotal, setPaidTotal] = useState(0)
+    const [unpaidCount, setUnpaidCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
-    const [saving, setSaving] = useState<string | null>(null)
     const [badges, setBadges] = useState<Badge[]>([])
 
     const load = useCallback(async () => {
         setLoading(true)
+        setError('')
         try {
             const [paymentsRes, statsRes] = await Promise.all([fetch('/api/payments'), fetch('/api/stats/me')])
             const [payments, stats] = await Promise.all([paymentsRes.json(), statsRes.json()])
             setRows(payments.rows || [])
+            setUnpaidTotal(payments.unpaidTotal || 0)
+            setPaidTotal(payments.paidTotal || 0)
+            setUnpaidCount(payments.unpaidCount || 0)
             if (stats.stats) setBadges(computeBadges(stats.stats as UserStats))
+        } catch {
+            setError('Greška pri učitavanju.')
         } finally {
             setLoading(false)
         }
@@ -43,40 +51,6 @@ export default function DugPage() {
     useEffect(() => {
         load()
     }, [load])
-
-    async function togglePaid(date: string, paid: boolean) {
-        setSaving(date)
-        setError('')
-        setRows((prev) => prev.map((r) => (r.date === date ? { ...r, paid } : r)))
-        try {
-            const res = await fetch('/api/payments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date, paid }),
-            })
-            if (!res.ok) {
-                setRows((prev) => prev.map((r) => (r.date === date ? { ...r, paid: !paid } : r)))
-                const data = await res.json().catch(() => ({}))
-                setError(data.error || 'Greška pri čuvanju.')
-            }
-        } finally {
-            setSaving(null)
-        }
-    }
-
-    const { unpaidTotal, paidTotal, unpaidCount } = useMemo(() => {
-        let unpaid = 0
-        let paid = 0
-        let count = 0
-        for (const r of rows) {
-            if (r.paid) paid += r.total
-            else {
-                unpaid += r.total
-                count += 1
-            }
-        }
-        return { unpaidTotal: unpaid, paidTotal: paid, unpaidCount: count }
-    }, [rows])
 
     if (loading) {
         return (
@@ -90,6 +64,8 @@ export default function DugPage() {
         )
     }
 
+    const subsidyTotal = rows.reduce((a, r) => a + r.subsidy, 0)
+
     return (
         <Stack spacing={{ xs: 2.5, sm: 3 }}>
             <Box>
@@ -97,7 +73,7 @@ export default function DugPage() {
                     Moj dug
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                    Pregled porudžbina po danima. Označi dan kao plaćen kada izmiriš račun.
+                    Pregled porudžbina po danima. Uplate evidentira administrator – kada platiš, dan će biti označen kao plaćen.
                 </Typography>
             </Box>
 
@@ -144,14 +120,24 @@ export default function DugPage() {
 
                     <Divider sx={{ my: 2, borderStyle: 'dashed' }} />
 
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <CheckCircleIcon fontSize="small" sx={{ color: 'success.main' }} />
+                    <Stack spacing={0.75}>
+                        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <CheckCircleIcon fontSize="small" sx={{ color: 'success.main' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                    Već plaćeno
+                                </Typography>
+                            </Stack>
+                            <Typography sx={{ fontWeight: 600, color: 'success.main' }}>{rsd(paidTotal)}</Typography>
+                        </Stack>
+                        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ pl: 3.5 }}>
+                                Pokrila firma (ukupno)
+                            </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Već plaćeno
+                                {rsd(subsidyTotal)}
                             </Typography>
                         </Stack>
-                        <Typography sx={{ fontWeight: 600, color: 'success.main' }}>{rsd(paidTotal)}</Typography>
                     </Stack>
 
                     <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
@@ -178,7 +164,6 @@ export default function DugPage() {
                             sx={(t) => ({
                                 opacity: r.paid ? 0.72 : 1,
                                 bgcolor: r.paid ? t.vars.palette.action.hover : undefined,
-                                '&:hover': { borderColor: 'primary.light' },
                             })}
                         >
                             <CardContent sx={{ '&:last-child': { pb: 2 }, py: 1.75 }}>
@@ -208,10 +193,21 @@ export default function DugPage() {
                                             >
                                                 {rsd(r.total)}
                                             </Typography>
+                                            {r.subsidy > 0 && (
+                                                <Tooltip title={`Puna cena ${rsd(r.full)}, firma pokriva ${rsd(r.subsidy)}`}>
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{ textDecoration: 'line-through' }}
+                                                    >
+                                                        {rsd(r.full)}
+                                                    </Typography>
+                                                </Tooltip>
+                                            )}
                                             {r.mealCount > 0 && (
                                                 <Chip
                                                     size="small"
-                                                    label={`${r.mealCount} jela`}
+                                                    label={`${r.mealCount} ${r.mealCount === 1 ? 'porcija' : 'porcije'}`}
                                                     variant="outlined"
                                                     sx={{ color: 'text.secondary' }}
                                                 />
@@ -222,20 +218,25 @@ export default function DugPage() {
                                         </Stack>
                                     </Box>
 
-                                    <Tooltip title={r.paid ? 'Označi kao neplaćeno' : 'Označi kao plaćeno'}>
-                                        <Checkbox
-                                            checked={r.paid}
-                                            disabled={saving === r.date}
-                                            onChange={(e) => togglePaid(r.date, e.target.checked)}
-                                            icon={<RadioButtonUncheckedIcon />}
-                                            checkedIcon={<CheckCircleIcon />}
-                                            sx={{
-                                                color: 'text.disabled',
-                                                '&.Mui-checked': { color: 'success.main' },
-                                            }}
-                                            slotProps={{ input: { 'aria-label': 'Plaćeno' } }}
+                                    {r.paid ? (
+                                        <Tooltip title={r.paidAt ? `Evidentirano ${formatDateLong(new Date(r.paidAt))}` : 'Plaćeno'}>
+                                            <Chip
+                                                icon={<CheckCircleIcon />}
+                                                label="Plaćeno"
+                                                size="small"
+                                                color="success"
+                                                variant="outlined"
+                                            />
+                                        </Tooltip>
+                                    ) : (
+                                        <Chip
+                                            icon={<ScheduleIcon />}
+                                            label="Nije plaćeno"
+                                            size="small"
+                                            color="primary"
+                                            variant="outlined"
                                         />
-                                    </Tooltip>
+                                    )}
                                 </Stack>
                             </CardContent>
                         </Card>

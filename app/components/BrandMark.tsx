@@ -1,40 +1,37 @@
 'use client'
 
-import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
+/** Logo aplikacije – ista slika kao favicon (app/favicon.ico, Next je servira na /favicon.ico). */
 export default function BrandMark({ size = 'md', showText = true }: { size?: 'sm' | 'md' | 'lg'; showText?: boolean }) {
-    const dims = { sm: 32, md: 38, lg: 56 }[size]
-    const iconSize = { sm: 18, md: 22, lg: 32 }[size]
+    const dims = { sm: 32, md: 38, lg: 64 }[size]
     const textVariant = { sm: 'subtitle1', md: 'h6', lg: 'h5' }[size] as 'subtitle1' | 'h6' | 'h5'
 
     return (
         <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
             <Box
+                component="img"
+                src="/favicon.ico"
+                alt=""
                 aria-hidden
+                width={dims}
+                height={dims}
                 sx={(t) => ({
                     width: dims,
                     height: dims,
                     flexShrink: 0,
-                    borderRadius: `${dims * 0.32}px`,
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: '#fff',
-                    background: `linear-gradient(145deg, ${t.vars.palette.primary.light}, ${t.vars.palette.primary.dark})`,
+                    display: 'block',
+                    objectFit: 'cover',
+                    borderRadius: `${dims * 0.28}px`,
                     boxShadow: t.shadows[2],
-                    ...t.applyStyles('dark', {
-                        color: t.vars.palette.primary.contrastText,
-                    }),
                 })}
-            >
-                <RestaurantMenuIcon sx={{ fontSize: iconSize }} />
-            </Box>
+            />
 
             {showText && (
-                <Typography variant={textVariant} sx={{ fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.1 }}>
-                    Jelovnik
+                <Typography variant={textVariant} sx={{ fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.1, width: 180 }}>
+                    Aplikacija za narucivanje hasa msm jelovnik
                 </Typography>
             )}
         </Stack>

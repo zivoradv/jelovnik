@@ -21,6 +21,13 @@ export const CATEGORIES = [
     { value: 'suvo', label: 'Suvi obrok' },
 ] as const
 
+/** Podrazumevane cene pri unosu novog jela (RSD). */
+export const DEFAULT_PRICES = {
+    kuvano: 500,
+    suvo: 400,
+    posno: 400,
+} as const
+
 export const COOKIE_NAME = 'token'
 export const TOKEN_MAX_AGE = 60 * 60 * 24 * 30
 

@@ -5,14 +5,24 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useS
 export interface CurrentUser {
     id: number
     username: string
+    firstName: string
+    lastName: string
     role: 'admin' | 'user'
+    createdAt?: string
+}
+
+export interface RegisterInput {
+    username: string
+    password: string
+    firstName: string
+    lastName: string
 }
 
 interface AuthState {
     user: CurrentUser | null
     loading: boolean
     login: (username: string, password: string) => Promise<void>
-    register: (username: string, password: string) => Promise<void>
+    register: (input: RegisterInput) => Promise<void>
     logout: () => Promise<void>
     refresh: () => Promise<void>
 }
@@ -55,14 +65,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user)
     }, [])
 
-    const register = useCallback(async (username: string, password: string) => {
-        const data = await post('/api/auth/register', { username, password })
+    const register = useCallback(async (input: RegisterInput) => {
+        const data = await post('/api/auth/register', input)
         setUser(data.user)
     }, [])
 
     const logout = useCallback(async () => {
         await fetch('/api/auth/logout', { method: 'POST' })
-        window.location.reload()
+        window.location.assign('/login')
         setUser(null)
     }, [])
 

@@ -18,11 +18,14 @@ import {
     Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
+import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
 
 interface U {
     id: number
     username: string
+    firstName: string
+    lastName: string
     role: 'admin' | 'user'
     createdAt: string
 }
@@ -122,7 +125,7 @@ export default function UsersAdmin() {
                                                         : t.vars.palette.text.secondary,
                                             })}
                                         >
-                                            {u.username[0]?.toUpperCase() ?? '?'}
+                                            {initials(u)}
                                         </Avatar>
 
                                         <Box sx={{ minWidth: 0 }}>
@@ -133,7 +136,7 @@ export default function UsersAdmin() {
                                                 sx={{ alignItems: 'center', flexWrap: 'wrap' }}
                                             >
                                                 <Typography sx={{ fontWeight: 600 }} noWrap>
-                                                    {u.username}
+                                                    {fullName(u)}
                                                 </Typography>
                                                 {isMe && <Chip label="vi" size="small" variant="outlined" />}
                                                 {u.role === 'admin' && (
@@ -146,6 +149,9 @@ export default function UsersAdmin() {
                                                     />
                                                 )}
                                             </Stack>
+                                            <Typography variant="caption" color="text.secondary">
+                                                @{u.username}
+                                            </Typography>
                                         </Box>
                                     </Stack>
 

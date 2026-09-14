@@ -1,15 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { forbidden, getCurrentUser } from '@/lib/session'
+import { badRequest, errorMessage, requireAdmin } from '@/lib/api'
 import { deleteMeal, updateMeal } from '@/services/meals.service'
 
 type Ctx = { params: Promise<{ id: string }> }
-
-async function requireAdmin() {
-    const user = await getCurrentUser()
-    if (!user) return { error: NextResponse.json({ error: 'Niste prijavljeni.' }, { status: 401 }) }
-    if (user.role !== 'admin') return { error: forbidden() }
-    return { user }
-}
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
     const auth = await requireAdmin()
@@ -25,7 +18,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
         if (body.note !== undefined) patch.note = String(body.note)
         if (body.price !== undefined) patch.price = String(body.price)
         if (body.category !== undefined) patch.category = body.category === 'suvo' ? 'suvo' : 'kuvano'
-        if (body.day !== undefined) patch.day = body.day === null || body.day === '' ? null : Number(body.day)
         if (body.isPosno !== undefined) patch.isPosno = Boolean(body.isPosno)
         if (body.active !== undefined) patch.active = Boolean(body.active)
 
@@ -33,8 +25,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
         if (!meal) return NextResponse.json({ error: 'Jelo nije pronađeno.' }, { status: 404 })
         return NextResponse.json({ meal })
     } catch (err) {
-        const message = err instanceof Error ? err.message : 'Greška pri izmeni jela.'
-        return NextResponse.json({ error: message }, { status: 400 })
+        return badRequest(errorMessage(err, 'Greška pri izmeni jela.'))
     }
 }
 
