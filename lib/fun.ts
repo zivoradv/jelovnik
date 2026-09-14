@@ -16,12 +16,7 @@ const MORNING = [
     'Developer voli kafu',
 ] as const
 
-const NOON = [
-    'Podne je.',
-    'RUCAK',
-    'ITS TIME TO D-D-D-DUEL',
-    'Nemoj da gasis TV jel vidis da gledam <i>AKTUELNOSTI</i>'
-] as const
+const NOON = ['Podne je.', 'RUCAK', 'ITS TIME TO D-D-D-DUEL', 'Nemoj da gasis TV jel vidis da gledam <i>AKTUELNOSTI</i>'] as const
 
 const AFTERNOON = [
     'Poz, {name}. Sutra je novi dan, a takođe je i prekosutra.',
@@ -33,7 +28,7 @@ const AFTERNOON = [
     'Ako se neko naljuti na neku foru znajte da developer NIT JE LUK JEO NIT MIRISAO, kontas kao ovo je jelovnik a luk ide u hranu pa kao',
     'Jel znas da se otvorio KFC u BIGU???',
     'BIG KAHUNA BURGER ili ti ROYAAALE WITH CHEESE',
-    'Jel neko za CHESS?'
+    'Jel neko za CHESS?',
 ] as const
 
 const EVENING = [
@@ -44,11 +39,7 @@ const EVENING = [
     'Nemoj da gasis TV jel vidis da gledam aktuelnosti (˶˃ ᵕ ˂˶)',
 ] as const
 
-const NIGHT = [
-    '{name}, baaš voliš ovu aplikaciju?',
-    '{name}, tri je ujutru covjece.',
-    'Poz, {name}.',
-] as const
+const NIGHT = ['{name}, baaš voliš ovu aplikaciju?', '{name}, tri je ujutru covjece.', 'Poz, {name}.'] as const
 
 const DAY_TAGLINES: Record<number, readonly string[]> = {
     1: ['Ponedeljak, pa utorak, pa sreda...'],
@@ -134,7 +125,7 @@ export function debtRoast(unpaidTotal: number, unpaidCount: number): string {
     return 'Druže… ovo više nije dug, ovo je kredit. Kuvarica čeka.'
 }
 
-export const KONAMI_MESSAGE = '↑↑↓↓←→←→BA - Šef kuhinje ti otključava tajni meni: dupla porcija. Samo u snovima.'
+export const KONAMI_MESSAGE = '↑↑↓↓←→←→BA - Šef kuhinje ti otključava tajni meni: dupla porcija! ...Samo u snovima.'
 
 export const NOT_FOUND_MESSAGES = [
     'Ova stranica je pojedena.',
@@ -142,13 +133,6 @@ export const NOT_FOUND_MESSAGES = [
     'Stranica je otišla na pauzu za ručak i nije se vratila.',
 ] as const
 
-export const CONSOLE_BANNER = [
-    'ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.',
-    'font-size:18px;font-weight:700;color:#A82B24',
-    'font-size:12px;color:#827466',
-] as const
+export const CONSOLE_BANNER = ['ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.'] as const
 
-export const CONSOLE_PS = [
-    '%cP.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu - on zna šta si naručio.',
-    'font-size:12px;font-style:italic;color:#C77C22',
-] as const
+export const CONSOLE_PS = ['P.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu ili?!!!. 🤬'] as const
