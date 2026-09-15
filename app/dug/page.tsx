@@ -5,42 +5,44 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { Alert, Box, Card, CardContent, Chip, Divider, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
 import { useCallback, useEffect, useState } from 'react'
-import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { formatDateLong, fromISODate } from '@/lib/date'
 import { debtRoast } from '@/lib/fun'
 import { rsd } from '@/lib/pricing'
+
+type DebtStatus = 'placeno' | 'neplaceno' | 'delimicno' | 'preplaceno' | 'nista'
 
 interface DebtRow {
     date: string
     full: number
     subsidy: number
     total: number
+    paid: number
+    remaining: number
+    status: DebtStatus
     mealCount: number
-    customCount: number
-    paid: boolean
     paidAt: string | null
 }
 
 export default function DugPage() {
     const [rows, setRows] = useState<DebtRow[]>([])
     const [unpaidTotal, setUnpaidTotal] = useState(0)
+    const [overpaidTotal, setOverpaidTotal] = useState(0)
     const [paidTotal, setPaidTotal] = useState(0)
     const [unpaidCount, setUnpaidCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
-    const [badges, setBadges] = useState<Badge[]>([])
 
     const load = useCallback(async () => {
         setLoading(true)
         setError('')
         try {
             const [paymentsRes, statsRes] = await Promise.all([fetch('/api/payments'), fetch('/api/stats/me')])
-            const [payments, stats] = await Promise.all([paymentsRes.json(), statsRes.json()])
+            const [payments] = await Promise.all([paymentsRes.json(), statsRes.json()])
             setRows(payments.rows || [])
             setUnpaidTotal(payments.unpaidTotal || 0)
+            setOverpaidTotal(payments.overpaidTotal || 0)
             setPaidTotal(payments.paidTotal || 0)
             setUnpaidCount(payments.unpaidCount || 0)
-            if (stats.stats) setBadges(computeBadges(stats.stats as UserStats))
         } catch {
             setError('Greška pri učitavanju.')
         } finally {
@@ -65,6 +67,7 @@ export default function DugPage() {
     }
 
     const subsidyTotal = rows.reduce((a, r) => a + r.subsidy, 0)
+    const settled = unpaidTotal <= 0
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3 }}>
@@ -91,7 +94,7 @@ export default function DugPage() {
                         top: 0,
                         bottom: 0,
                         width: 5,
-                        bgcolor: unpaidTotal > 0 ? 'primary.main' : 'success.main',
+                        bgcolor: settled ? 'success.main' : 'primary.main',
                     },
                 })}
             >
@@ -106,7 +109,7 @@ export default function DugPage() {
                                 fontFamily: 'var(--font-sans)',
                                 fontWeight: 700,
                                 letterSpacing: '-0.02em',
-                                color: unpaidTotal > 0 ? 'primary.main' : 'success.main',
+                                color: settled ? 'success.main' : 'primary.main',
                                 fontSize: 'clamp(2rem, 1.5rem + 2.4vw, 2.75rem)',
                                 lineHeight: 1.1,
                             }}
@@ -130,6 +133,16 @@ export default function DugPage() {
                             </Stack>
                             <Typography sx={{ fontWeight: 600, color: 'success.main' }}>{rsd(paidTotal)}</Typography>
                         </Stack>
+                        {overpaidTotal > 0 && (
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ pl: 3.5 }}>
+                                    Preplata (tvoj kredit)
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: 'info.main' }}>
+                                    {rsd(overpaidTotal)}
+                                </Typography>
+                            </Stack>
+                        )}
                         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary" sx={{ pl: 3.5 }}>
                                 Pokrila firma (ukupno)
@@ -146,6 +159,13 @@ export default function DugPage() {
                 </CardContent>
             </Card>
 
+            {overpaidTotal > 0 && (
+                <Alert severity="info">
+                    Za neki dan je plaćeno više nego što porudžbina sada košta (promenio si porudžbinu posle uplate). Razliku od{' '}
+                    {rsd(overpaidTotal)} dogovori sa administratorom – vraća se ili prebija sa sledećim dugom.
+                </Alert>
+            )}
+
             {rows.length === 0 ? (
                 <Card sx={{ py: 6, px: 3, textAlign: 'center' }}>
                     <ReceiptLongIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
@@ -159,140 +179,104 @@ export default function DugPage() {
             ) : (
                 <Stack spacing={1.25}>
                     {rows.map((r) => (
-                        <Card
-                            key={r.date}
-                            sx={(t) => ({
-                                opacity: r.paid ? 0.72 : 1,
-                                bgcolor: r.paid ? t.vars.palette.action.hover : undefined,
-                            })}
-                        >
-                            <CardContent sx={{ '&:last-child': { pb: 2 }, py: 1.75 }}>
-                                <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                        <Typography
-                                            sx={{
-                                                fontWeight: 600,
-                                                textDecoration: r.paid ? 'line-through' : 'none',
-                                                textDecorationColor: 'rgba(130,116,102,0.5)',
-                                            }}
-                                        >
-                                            {formatDateLong(fromISODate(r.date))}
-                                        </Typography>
-                                        <Stack
-                                            direction="row"
-                                            spacing={1}
-                                            useFlexGap
-                                            sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}
-                                        >
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontWeight: 700,
-                                                    color: r.paid ? 'text.secondary' : 'primary.main',
-                                                }}
-                                            >
-                                                {rsd(r.total)}
-                                            </Typography>
-                                            {r.subsidy > 0 && (
-                                                <Tooltip title={`Puna cena ${rsd(r.full)}, firma pokriva ${rsd(r.subsidy)}`}>
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="text.secondary"
-                                                        sx={{ textDecoration: 'line-through' }}
-                                                    >
-                                                        {rsd(r.full)}
-                                                    </Typography>
-                                                </Tooltip>
-                                            )}
-                                            {r.mealCount > 0 && (
-                                                <Chip
-                                                    size="small"
-                                                    label={`${r.mealCount} ${r.mealCount === 1 ? 'porcija' : 'porcije'}`}
-                                                    variant="outlined"
-                                                    sx={{ color: 'text.secondary' }}
-                                                />
-                                            )}
-                                            {r.customCount > 0 && (
-                                                <Chip size="small" color="warning" variant="outlined" label={`${r.customCount} bez cene`} />
-                                            )}
-                                        </Stack>
-                                    </Box>
-
-                                    {r.paid ? (
-                                        <Tooltip title={r.paidAt ? `Evidentirano ${formatDateLong(new Date(r.paidAt))}` : 'Plaćeno'}>
-                                            <Chip
-                                                icon={<CheckCircleIcon />}
-                                                label="Plaćeno"
-                                                size="small"
-                                                color="success"
-                                                variant="outlined"
-                                            />
-                                        </Tooltip>
-                                    ) : (
-                                        <Chip
-                                            icon={<ScheduleIcon />}
-                                            label="Nije plaćeno"
-                                            size="small"
-                                            color="primary"
-                                            variant="outlined"
-                                        />
-                                    )}
-                                </Stack>
-                            </CardContent>
-                        </Card>
+                        <DebtRowCard key={r.date} row={r} />
                     ))}
                 </Stack>
-            )}
-
-            {badges.length > 0 && <BadgesCard badges={badges} />}
-
-            {rows.some((r) => r.customCount > 0) && (
-                <Alert severity="info">
-                    Sopstvene porudžbine nemaju cenu u meniju, pa nisu uračunate u iznos. Njih dogovorite zasebno.
-                </Alert>
             )}
         </Stack>
     )
 }
 
-function BadgesCard({ badges }: { badges: Badge[] }) {
-    const earned = badges.filter((b) => b.earned).length
+function DebtRowCard({ row: r }: { row: DebtRow }) {
+    const done = r.status === 'placeno' || r.status === 'nista'
     return (
-        <Card>
-            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 2 }}>
-                    <Typography variant="h6">Tvoje zasluge</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {earned} / {badges.length}
-                    </Typography>
-                </Stack>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
-                    {badges.map((b) => (
-                        <Stack
-                            key={b.id}
-                            direction="row"
-                            spacing={1.5}
+        <Card
+            sx={(t) => ({
+                opacity: done ? 0.72 : 1,
+                bgcolor: done ? t.vars.palette.action.hover : undefined,
+            })}
+        >
+            <CardContent sx={{ '&:last-child': { pb: 2 }, py: 1.75 }}>
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography
                             sx={(t) => ({
-                                p: 1.5,
-                                borderRadius: 2.5,
-                                border: '1.5px solid',
-                                borderColor: b.earned ? 'primary.light' : t.vars.palette.divider,
-                                opacity: b.earned ? 1 : 0.5,
-                                filter: b.earned ? 'none' : 'grayscale(1)',
-                                alignItems: 'center',
+                                fontWeight: 600,
+                                textDecoration: done ? 'line-through' : 'none',
+                                textDecorationColor: `rgba(${t.vars.palette.text.secondaryChannel} / 0.5)`,
                             })}
                         >
-                            <Typography sx={{ fontSize: 28, lineHeight: 1 }}>{b.emoji}</Typography>
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography sx={{ fontWeight: 600, lineHeight: 1.3 }}>{b.title}</Typography>
+                            {formatDateLong(fromISODate(r.date))}
+                        </Typography>
+                        <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontWeight: 700,
+                                    color: done ? 'text.secondary' : 'primary.main',
+                                }}
+                            >
+                                {rsd(r.total)}
+                            </Typography>
+                            {r.subsidy > 0 && (
+                                <Tooltip title={`Puna cena ${rsd(r.full)}, firma pokriva ${rsd(r.subsidy)}`}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through' }}>
+                                        {rsd(r.full)}
+                                    </Typography>
+                                </Tooltip>
+                            )}
+                            {r.mealCount > 0 && (
+                                <Chip
+                                    size="small"
+                                    label={`${r.mealCount} ${r.mealCount === 1 ? 'porcija' : 'porcije'}`}
+                                    variant="outlined"
+                                    sx={{ color: 'text.secondary' }}
+                                />
+                            )}
+                            {r.status === 'delimicno' && (
                                 <Typography variant="caption" color="text.secondary">
-                                    {b.description}
+                                    plaćeno {rsd(r.paid)} · ostaje {rsd(r.remaining)}
                                 </Typography>
-                            </Box>
+                            )}
+                            {r.status === 'preplaceno' && (
+                                <Typography variant="caption" color="text.secondary">
+                                    plaćeno {rsd(r.paid)} · preplata {rsd(-r.remaining)}
+                                </Typography>
+                            )}
                         </Stack>
-                    ))}
-                </Box>
+                    </Box>
+
+                    <StatusChip row={r} />
+                </Stack>
             </CardContent>
         </Card>
     )
+}
+
+function StatusChip({ row: r }: { row: DebtRow }) {
+    const paidAt = r.paidAt ? `Evidentirano ${formatDateLong(new Date(r.paidAt))}` : ''
+    switch (r.status) {
+        case 'placeno':
+            return (
+                <Tooltip title={paidAt || 'Plaćeno'}>
+                    <Chip icon={<CheckCircleIcon />} label="Plaćeno" size="small" color="success" variant="outlined" />
+                </Tooltip>
+            )
+        case 'nista':
+            return <Chip label="Ništa za plaćanje" size="small" variant="outlined" />
+        case 'delimicno':
+            return (
+                <Tooltip title={paidAt}>
+                    <Chip icon={<ScheduleIcon />} label="Delimično" size="small" color="warning" variant="outlined" />
+                </Tooltip>
+            )
+        case 'preplaceno':
+            return (
+                <Tooltip title={paidAt}>
+                    <Chip icon={<CheckCircleIcon />} label="Preplaćeno" size="small" color="info" variant="outlined" />
+                </Tooltip>
+            )
+        default:
+            return <Chip icon={<ScheduleIcon />} label="Nije plaćeno" size="small" color="primary" variant="outlined" />
+    }
 }

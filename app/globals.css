@@ -29,17 +29,14 @@ html {
     }
 }
 
+/* boje prate izabranu temu (MUI CSS varijable), pa rade za svih 5 tema i oba moda */
 ::selection {
-    background: rgba(168, 43, 36, 0.18);
-}
-
-.dark ::selection {
-    background: rgba(232, 155, 149, 0.26);
+    background: rgba(var(--mui-palette-primary-mainChannel) / 0.22);
 }
 
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(130, 116, 102, 0.45) transparent;
+    scrollbar-color: rgba(var(--mui-palette-text-secondaryChannel) / 0.45) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -52,37 +49,32 @@ html {
 }
 
 *::-webkit-scrollbar-thumb {
-    background-color: rgba(130, 116, 102, 0.35);
+    background-color: rgba(var(--mui-palette-text-secondaryChannel) / 0.35);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(130, 116, 102, 0.55);
+    background-color: rgba(var(--mui-palette-text-secondaryChannel) / 0.55);
 }
 
 :focus-visible {
-    outline: 2px solid rgba(168, 43, 36, 0.6);
+    outline: 2px solid rgba(var(--mui-palette-primary-mainChannel) / 0.65);
     outline-offset: 2px;
 }
 
-.dark :focus-visible {
-    outline-color: rgba(232, 155, 149, 0.7);
-}
-
-/* filter ide na html, ne na body: filter na body pravi containing block,
-   pa bi position: fixed (MUI Dialog, Snackbar) skrolovao sa stranicom. */
-html.kafana {
-    filter: sepia(0.45) saturate(1.15) contrast(1.05);
-}
-
+/* Kafanski mod: sepia preko fiksnog sloja (backdrop-filter), a ne filter na <html>.
+   Filter na html/body pravi containing block za position: fixed (dijalozi, snackbar bi skrolovali sa stranicom)
+   i tera browser da ceo dokument ponovo filtrira pri svakoj animaciji (konfete!). */
 html.kafana::after {
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 1999;
+    backdrop-filter: sepia(0.45) saturate(1.15) contrast(1.05);
+    -webkit-backdrop-filter: sepia(0.45) saturate(1.15) contrast(1.05);
     background: radial-gradient(ellipse at center, transparent 55%, rgba(60, 30, 10, 0.35) 100%);
 }
 

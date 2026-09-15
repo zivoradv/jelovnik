@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
             name: String(body.name).trim(),
             description: body.description ? String(body.description) : '',
             note: body.note ? String(body.note) : '',
-            price: body.price !== undefined && body.price !== '' ? String(body.price) : '0',
+            price: String(Math.max(0, Math.round(Number(body.price)) || 0)),
             category,
             isPosno: Boolean(body.isPosno),
             active: body.active === undefined ? true : Boolean(body.active),

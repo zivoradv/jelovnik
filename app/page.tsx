@@ -5,8 +5,6 @@ import BakeryDiningIcon from '@mui/icons-material/BakeryDining'
 import CheckIcon from '@mui/icons-material/Check'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
-import EditNoteIcon from '@mui/icons-material/EditNote'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import RamenDiningIcon from '@mui/icons-material/RamenDining'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
@@ -38,8 +36,8 @@ import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, firstOrderableWorkday, isOrderingOpen } from '@/lib/deadline'
-import { customTextReaction, EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
-import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, unitPrice } from '@/lib/pricing'
+import { EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
+import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, subsidyFor, unitPrice } from '@/lib/pricing'
 import { useAuth } from './auth-context'
 import { useFun } from './fun-context'
 
@@ -55,8 +53,7 @@ interface Meal {
 
 interface OrderRow {
     id: number
-    mealId: number | null
-    customText: string | null
+    mealId: number
     note: string | null
     withSoup: boolean
     quantity: number
@@ -92,7 +89,6 @@ export default function HomePage() {
     const [quantities, setQuantities] = useState<Record<number, number>>({})
     const [notes, setNotes] = useState<Record<number, string>>({})
     const [soups, setSoups] = useState<Record<number, boolean>>({})
-    const [customItems, setCustomItems] = useState<string[]>([])
 
     const weekDays = useMemo(() => workdaysOfWeek(weekAnchor), [weekAnchor])
     const selDateObj = fromISODate(selectedDate)
@@ -120,20 +116,14 @@ export default function HomePage() {
             const qty: Record<number, number> = {}
             const noteMap: Record<number, string> = {}
             const soupMap: Record<number, boolean> = {}
-            const customs: string[] = []
             for (const o of mine) {
-                if (o.mealId !== null) {
-                    qty[o.mealId] = o.quantity ?? 1
-                    if (o.note) noteMap[o.mealId] = o.note
-                    if (o.withSoup) soupMap[o.mealId] = true
-                } else if (o.customText) {
-                    customs.push(o.customText)
-                }
+                qty[o.mealId] = o.quantity ?? 1
+                if (o.note) noteMap[o.mealId] = o.note
+                if (o.withSoup) soupMap[o.mealId] = true
             }
             setQuantities(qty)
             setNotes(noteMap)
             setSoups(soupMap)
-            setCustomItems(customs)
         } catch {
             setError('Greška pri učitavanju menija.')
         } finally {
@@ -197,18 +187,12 @@ export default function HomePage() {
         setSaving(true)
         setError('')
         try {
-            const items = [
-                ...Object.entries(quantities).map(([mealId, qty]) => ({
-                    mealId: Number(mealId),
-                    quantity: qty,
-                    note: notes[Number(mealId)] || null,
-                    withSoup: Boolean(soups[Number(mealId)]),
-                })),
-                ...customItems
-                    .map((t) => t.trim())
-                    .filter(Boolean)
-                    .map((customText) => ({ customText })),
-            ]
+            const items = Object.entries(quantities).map(([mealId, qty]) => ({
+                mealId: Number(mealId),
+                quantity: qty,
+                note: notes[Number(mealId)] || null,
+                withSoup: Boolean(soups[Number(mealId)]),
+            }))
             const res = await fetch('/api/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -245,7 +229,6 @@ export default function HomePage() {
                 }),
         [menu, quantities, soups, pricing],
     )
-    const receiptCustoms = useMemo(() => customItems.map((c) => c.trim()).filter(Boolean), [customItems])
 
     const cost = useMemo(
         () =>
@@ -255,10 +238,7 @@ export default function HomePage() {
             ),
         [receiptItems, pricing],
     )
-    const portionCount = useMemo(
-        () => receiptItems.reduce((a, it) => a + it.qty, 0) + receiptCustoms.length,
-        [receiptItems, receiptCustoms],
-    )
+    const portionCount = useMemo(() => receiptItems.reduce((a, it) => a + it.qty, 0), [receiptItems])
 
     if (authLoading || !user) {
         return (
@@ -426,7 +406,7 @@ export default function HomePage() {
                                         count={counts[m.id] || 0}
                                         note={notes[m.id] || ''}
                                         withSoup={false}
-                                        soupPrice={pricing.soupPrice}
+                                        pricing={pricing}
                                         disabled={isPast}
                                         onToggle={() => toggleMeal(m.id)}
                                         onQty={(q) => setQty(m.id, q)}
@@ -452,7 +432,7 @@ export default function HomePage() {
                                         count={counts[m.id] || 0}
                                         note=""
                                         withSoup={Boolean(soups[m.id])}
-                                        soupPrice={pricing.soupPrice}
+                                        pricing={pricing}
                                         disabled={isPast}
                                         onToggle={() => toggleMeal(m.id)}
                                         onQty={(q) => setQty(m.id, q)}
@@ -462,50 +442,6 @@ export default function HomePage() {
                                 ))}
                             </Section>
                         )}
-
-                        <Section title="Nešto drugo?" icon={<EditNoteIcon fontSize="small" />}>
-                            <Card sx={{ p: 2 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                                    Ako ti ništa ne odgovara, upiši šta želiš.
-                                </Typography>
-                                <Stack spacing={1.25}>
-                                    {customItems.map((val, idx) => (
-                                        <Stack direction="row" spacing={1} key={idx} sx={{ alignItems: 'flex-start' }}>
-                                            <TextField
-                                                fullWidth
-                                                size="small"
-                                                placeholder="npr. Grčka salata bez luka"
-                                                value={val}
-                                                disabled={isPast}
-                                                helperText={customTextReaction(val)}
-                                                onChange={(e) =>
-                                                    setCustomItems((items) => items.map((v, i) => (i === idx ? e.target.value : v)))
-                                                }
-                                            />
-                                            <IconButton
-                                                aria-label="Ukloni"
-                                                disabled={isPast}
-                                                onClick={() => setCustomItems((items) => items.filter((_, i) => i !== idx))}
-                                                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                                            >
-                                                <DeleteOutlinedIcon />
-                                            </IconButton>
-                                        </Stack>
-                                    ))}
-                                    {!isPast && (
-                                        <Button
-                                            startIcon={<AddIcon />}
-                                            onClick={() => setCustomItems((items) => [...items, ''])}
-                                            sx={{ alignSelf: 'flex-start' }}
-                                            variant="outlined"
-                                            size="small"
-                                        >
-                                            Dodaj svoju stavku
-                                        </Button>
-                                    )}
-                                </Stack>
-                            </Card>
-                        </Section>
                     </Stack>
 
                     {!isPast && (
@@ -518,14 +454,7 @@ export default function HomePage() {
                                 top: 90,
                             }}
                         >
-                            <ReceiptCard
-                                items={receiptItems}
-                                customs={receiptCustoms}
-                                cost={cost}
-                                portionCount={portionCount}
-                                saving={saving}
-                                onSave={save}
-                            />
+                            <ReceiptCard items={receiptItems} cost={cost} portionCount={portionCount} saving={saving} onSave={save} />
                         </Box>
                     )}
                 </Box>
@@ -548,10 +477,7 @@ export default function HomePage() {
                             py: 1.25,
                             backdropFilter: 'blur(12px) saturate(180%)',
                             WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.86)',
-                            ...t.applyStyles('dark', {
-                                backgroundColor: 'rgba(30, 24, 21, 0.88)',
-                            }),
+                            backgroundColor: `rgba(${t.vars.palette.background.paperChannel} / 0.88)`,
                         })}
                     >
                         <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
@@ -647,20 +573,18 @@ function EmptyMenu({ dayName }: { dayName: string }) {
 
 function ReceiptCard({
     items,
-    customs,
     cost,
     portionCount,
     saving,
     onSave,
 }: {
     items: { id: number; name: string; qty: number; price: number; withSoup: boolean }[]
-    customs: string[]
     cost: DayCost
     portionCount: number
     saving: boolean
     onSave: () => void
 }) {
-    const empty = items.length === 0 && customs.length === 0
+    const empty = items.length === 0
     return (
         <Card sx={(t) => ({ boxShadow: t.shadows[4] })}>
             <CardContent sx={{ p: 2.5 }}>
@@ -698,16 +622,6 @@ function ReceiptCard({
                                 </Typography>
                                 <Typography variant="body2" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
                                     {rsd(it.price * it.qty)}
-                                </Typography>
-                            </Stack>
-                        ))}
-                        {customs.map((c, i) => (
-                            <Stack key={`${i}-${c}`} direction="row" spacing={1.5} sx={{ justifyContent: 'space-between' }}>
-                                <Typography variant="body2" color="text.secondary">
-                                    {c}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    -
                                 </Typography>
                             </Stack>
                         ))}
@@ -776,7 +690,7 @@ function MealItem({
     count,
     note,
     withSoup,
-    soupPrice,
+    pricing,
     disabled,
     onToggle,
     onQty,
@@ -788,7 +702,7 @@ function MealItem({
     count: number
     note: string
     withSoup: boolean
-    soupPrice: number
+    pricing: PricingSettings
     disabled: boolean
     onToggle: () => void
     onQty: (q: number) => void
@@ -799,6 +713,10 @@ function MealItem({
     const price = Number(meal.price) || 0
     const reaction = quantityReaction(qty)
     const isSuvo = meal.category === 'suvo'
+    const soupPrice = pricing.soupPrice
+    // realna cena: firma pokriva deo JEDNE porcije dnevno (najskuplje), svaka dodatna je puna cena
+    const unit = unitPrice({ price, withSoup: isSuvo && withSoup }, pricing)
+    const subsidy = subsidyFor(unit, pricing)
 
     return (
         <Card
@@ -866,7 +784,32 @@ function MealItem({
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', justifyContent: 'space-between' }}>
                             <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>{meal.name}</Typography>
                             {price > 0 && (
-                                <Typography sx={{ fontWeight: 700, whiteSpace: 'nowrap', color: 'primary.main' }}>{rsd(price)}</Typography>
+                                <Tooltip
+                                    arrow
+                                    placement="left"
+                                    title={
+                                        <Box sx={{ lineHeight: 1.5 }}>
+                                            <b>Ti plaćaš {rsd(unit - subsidy)}</b>
+                                            {subsidy > 0 && ` (−${rsd(subsidy)} pokriva firma)`}
+                                            {isSuvo && withSoup && ` · sa čorbom ${rsd(unit)}`}
+                                            <br />
+                                            Popust važi za jednu porciju dnevno; svaka dodatna porcija je punih {rsd(unit)}.
+                                        </Box>
+                                    }
+                                >
+                                    <Typography
+                                        sx={{
+                                            fontWeight: 700,
+                                            whiteSpace: 'nowrap',
+                                            color: 'primary.main',
+                                            cursor: 'help',
+                                            textDecoration: 'underline dotted',
+                                            textUnderlineOffset: 3,
+                                        }}
+                                    >
+                                        {rsd(price)}
+                                    </Typography>
+                                </Tooltip>
                             )}
                         </Stack>
 
@@ -909,7 +852,6 @@ function MealItem({
                                     borderRadius: 1.5,
                                     color: 'secondary.dark',
                                     bgcolor: t.vars.palette.action.hover,
-                                    ...t.applyStyles('dark', { color: t.vars.palette.secondary.light }),
                                 })}
                             >
                                 {meal.note}

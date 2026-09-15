@@ -34,6 +34,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { CATEGORIES, DEFAULT_PRICES } from '@/lib/constants'
 import { DEFAULT_PRICING, type PricingSettings, rsd, type SubsidyMode, subsidyFor, subsidyLabel } from '@/lib/pricing'
+import { useConfirm } from '../confirm-context'
 
 interface Meal {
     id: number
@@ -84,6 +85,7 @@ function defaultPrice(category: 'kuvano' | 'suvo', isPosno: boolean): number {
 }
 
 export default function MealsAdmin() {
+    const confirm = useConfirm()
     const [meals, setMeals] = useState<Meal[]>([])
     const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
     const [pricingForm, setPricingForm] = useState<PricingForm>(toForm(DEFAULT_PRICING))
@@ -170,10 +172,23 @@ export default function MealsAdmin() {
         }
     }
 
-    async function remove(id: number) {
-        if (!confirm('Obrisati ovo jelo? Time se brišu i sve porudžbine tog jela, a korisnici koji su ga naručili dobijaju obaveštenje.'))
+    async function remove(m: Meal) {
+        const ok = await confirm({
+            title: `Obrisati jelo „${m.name}”?`,
+            message:
+                'Brisanje je moguće samo ako jelo niko nikada nije naručio – inače ga deaktiviraj (ostaje u istoriji i dugovima, ali nestaje iz ponude).',
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
+        setError('')
+        const res = await fetch(`/api/meals/${m.id}`, { method: 'DELETE' })
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            setError(data.error || 'Greška pri brisanju jela.')
             return
-        await fetch(`/api/meals/${id}`, { method: 'DELETE' })
+        }
+        setToast('Jelo je obrisano.')
         await load()
     }
 
@@ -321,7 +336,7 @@ export default function MealsAdmin() {
                     ) : (
                         <Stack spacing={1}>
                             {kuvana.map((m) => (
-                                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
+                                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m)} />
                             ))}
                         </Stack>
                     )}
@@ -333,7 +348,7 @@ export default function MealsAdmin() {
                     ) : (
                         <Stack spacing={1}>
                             {suva.map((m) => (
-                                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m.id)} />
+                                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m)} />
                             ))}
                         </Stack>
                     )}
@@ -510,7 +525,6 @@ function MealRow({ meal, onEdit, onDelete }: { meal: Meal; onEdit: () => void; o
                                     borderRadius: 1.5,
                                     color: 'secondary.dark',
                                     bgcolor: t.vars.palette.action.hover,
-                                    ...t.applyStyles('dark', { color: t.vars.palette.secondary.light }),
                                 })}
                             >
                                 {meal.note}

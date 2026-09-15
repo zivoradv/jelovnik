@@ -20,7 +20,7 @@ export default function NotFound() {
                 {message}
             </Typography>
             <Button component={Link} href="/" variant="contained" startIcon={<RestaurantMenuIcon />}>
-                Nazad na jelovnik
+                Nazad na meni
             </Button>
         </Card>
     )

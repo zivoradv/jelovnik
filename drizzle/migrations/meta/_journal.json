@@ -36,6 +36,20 @@
       "when": 1789413016030,
       "tag": "0004_pivo_rok_popust",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789508313618,
+      "tag": "0005_novac_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789508333859,
+      "tag": "0006_novac_ciscenje",
+      "breakpoints": true
     }
   ]
 }

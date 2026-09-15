@@ -1,7 +1,8 @@
 export interface UserStats {
     days: number
     portions: number
-    customCount: number
+    /** Koliko različitih jela je korisnik ikada naručio. */
+    distinctMeals: number
     posnoCount: number
     maxPortionsInDay: number
     streak: number
@@ -17,6 +18,9 @@ export interface Badge {
     description: string
     earned: boolean
 }
+
+/** Virtuoz: probao bar ovoliko različitih jela. */
+export const VIRTUOZ_MEALS = 8
 
 export function computeBadges(s: UserStats): Badge[] {
     const fav = s.favorite
@@ -67,8 +71,8 @@ export function computeBadges(s: UserStats): Badge[] {
             id: 'virtuoz',
             emoji: '🎨',
             title: 'Virtuoz',
-            description: '3 sopstvene porudžbine. Meni ti je samo predlog.',
-            earned: s.customCount >= 3,
+            description: `Probao ${VIRTUOZ_MEALS} različitih jela. Meni nije lista, meni je paleta.`,
+            earned: s.distinctMeals >= VIRTUOZ_MEALS,
         },
         {
             id: 'rana-ptica',

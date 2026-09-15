@@ -1,4 +1,4 @@
-# Jelovnik — aplikacija za naručivanje obroka
+# Brezna Obrok — aplikacija za naručivanje obroka
 
 Jednostavna web aplikacija koja zamenjuje naručivanje obroka preko Viber grupe.
 Administratori unose dnevni meni (šta se jede kog dana), a korisnici biraju
@@ -15,19 +15,25 @@ Napravljeno sa **Next.js + TypeScript + React + MUI**, baza preko **Drizzle ORM*
   šema se može ponovo koristiti, kopirati i menjati. Suvi obroci su uvek u ponudi.
 - Korisnik bira obrok za bilo koji radni dan; može izabrati i više porcija
 - **Čorba**: uz kuvano jelo je uključena; uz suvi obrok se dodaje po izboru (+100 RSD, podesivo)
-- **Popust firme**: firma pokriva deo cene jedne porcije dnevno – procenat ili fiksan iznos u dinarima (podesivo); svaka dodatna porcija se plaća u celosti
+- **Popust firme**: firma pokriva deo cene jedne porcije dnevno – procenat ili fiksan iznos u dinarima (podesivo); svaka dodatna porcija se plaća u celosti;
+  na hover cene jela vidi se koliko se stvarno plaća
 - **Rok za naručivanje**: najkasnije dan ranije do 17:00 (Europe/Belgrade); za isti dan se ne može naručiti
 - **Pivo 🍺**: stranica `/pivo` – predlozi (datum, vreme, mesto), ko ide / ne ide, obaveštenja kad neko predloži ili se prijavi;
   u kafanskom modu (7× klik na logo) povremeno iskače pitanje „Pivo?” sa Da/Ne
-- **Sopstvena porudžbina** — ako mu ništa ne odgovara, upiše šta želi
 - **Dodatak / napomena** uz kuvano jelo (npr. „bez luka“); suvi obrok nema napomenu
-- **Dugovi**: administrator evidentira uplate (po danu ili sve odjednom); korisnik vidi status svog duga
+- **Dugovi**: cena porcije i deo firme se **zamrzavaju u trenutku naručivanja** (`orders.unit_price` / `orders.subsidy`), pa promena cene jela
+  ili popusta ne menja stare račune (važi samo za dane posle današnjeg). Uplata se upisuje sa **tačnim iznosom** (`payments.amount`);
+  ako korisnik posle uplate promeni porudžbinu, dan postaje *delimično plaćen* ili *preplaćen* i admin + korisnik dobijaju obaveštenje.
+  Jelo koje je iko naručio ne može da se obriše (samo deaktivira); korisnik sa neizmirenim računom ne može da se obriše
 - **Obaveštenja** (zvonce): automatski za objavljen/izmenjen raspored, izmenjeno ili uklonjeno jelo,
-  evidentiranu uplatu i podsetnik za dug (cron ponedeljkom + ručno); admin može poslati i poruku svima
+  evidentiranu uplatu i podsetnik za dug (cron ponedeljkom + ručno); admin može poslati i poruku svima.
+  Obaveštenja starija od 30 dana se ne prikazuju i brišu se (isti cron)
+- **Statistika** (`/statistika`, vidljiva svima): mesečna tabela, jelo meseca i **Virtuoz** – ko je probao najviše različitih jela
+- **Kafanski mod** (7× klik na logo): sepia, povremeno pitanje „Pivo?” – dijalog beži od miša kad kreneš na „Ne”
 - **Profil**: izmena imena, prezimena, korisničkog imena i lozinke
 - Broj glasova po jelu vidljiv svima; administrator vidi **ko je šta poručio** i **ukupne količine**
 - Izvoz porudžbina: dugme **„Za dostavljača“ / „Detaljno“** (za lepljenje u Viber/štampu) i **CSV**
-- **Svetla / tamna tema**
+- **5 tema** (Cigla, Šuma, More, Šljiva, Kafa) × svetla / tamna varijanta – bira se u zaglavlju ili na profilu, pamti se u browseru
 - Aplikacija je na **srpskom** jeziku
 
 ## Tehnologije
@@ -134,6 +140,13 @@ git push -u origin main
 - Podsetnik (email/push) da se poruči obrok
 - Slike jela
 - Praznici / neradni dani koje admin ručno isključi
+
+## Nadogradnja postojeće baze (v3 – novac)
+
+Migracije `0005_novac_snapshot.sql` i `0006_novac_ciscenje.sql`: dodaju `orders.unit_price`, `orders.subsidy` i `payments.amount`
+(sa backfill-om iz trenutnih cena i podešavanja), brišu sopstvene porudžbine (`custom_text`) i kolonu `payments.paid`,
+i menjaju FK `orders.meal_id` na `ON DELETE RESTRICT`. Ako koristiš `db:push`, backfill iz 0005 izvrši ručno pre nego što se
+`custom_text`/`paid` obrišu – inače stari dugovi ostaju na 0.
 
 ## Nadogradnja postojeće baze (v2)
 

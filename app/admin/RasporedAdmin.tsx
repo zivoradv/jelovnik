@@ -34,6 +34,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate } from '@/lib/date'
+import { useConfirm } from '../confirm-context'
 
 interface Meal {
     id: number
@@ -68,6 +69,7 @@ function weekLabel(weekStart: string): string {
 }
 
 export default function RasporedAdmin() {
+    const confirm = useConfirm()
     const [templates, setTemplates] = useState<Template[]>([])
     const [meals, setMeals] = useState<Meal[]>([])
     const [weeks, setWeeks] = useState<WeekRow[]>([])
@@ -196,7 +198,13 @@ export default function RasporedAdmin() {
     }
 
     async function removeTemplate(t: Template) {
-        if (!confirm(`Obrisati šemu „${t.name}”?`)) return
+        const ok = await confirm({
+            title: `Obrisati šemu „${t.name}”?`,
+            message: 'Nedelje kojima je ova šema dodeljena ostaju bez rasporeda.',
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
         setError('')
         const res = await fetch(`/api/admin/templates/${t.id}`, { method: 'DELETE' })
         if (!res.ok) {

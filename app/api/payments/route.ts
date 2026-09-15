@@ -11,7 +11,9 @@ export async function GET() {
     return NextResponse.json({
         rows: balance?.rows ?? [],
         unpaidTotal: balance?.unpaidTotal ?? 0,
+        overpaidTotal: balance?.overpaidTotal ?? 0,
         paidTotal: balance?.paidTotal ?? 0,
         unpaidCount: balance?.unpaidCount ?? 0,
+        balance: balance?.balance ?? 0,
     })
 }

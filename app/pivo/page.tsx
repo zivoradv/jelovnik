@@ -33,6 +33,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
+import { useConfirm } from '../confirm-context'
 import { useFun } from '../fun-context'
 
 interface Person {
@@ -76,6 +77,7 @@ const CHEERS = [
 export default function PivoPage() {
     const { user } = useAuth()
     const { confetti } = useFun()
+    const confirm = useConfirm()
     const [upcoming, setUpcoming] = useState<Plan[]>([])
     const [past, setPast] = useState<Plan[]>([])
     const [loading, setLoading] = useState(true)
@@ -160,7 +162,13 @@ export default function PivoPage() {
     }
 
     async function remove(plan: Plan) {
-        if (!confirm('Obrisati ovaj dogovor?')) return
+        const ok = await confirm({
+            title: 'Obrisati ovaj dogovor?',
+            message: 'Prijave ekipe za ovo pivo se brišu.',
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
         const res = await fetch(`/api/pivo/${plan.id}`, { method: 'DELETE' })
         if (!res.ok) {
             const data = await res.json().catch(() => ({}))

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, errorMessage, requireAdmin } from '@/lib/api'
+import { repriceFutureOrders } from '@/services/orders.service'
 import { getPricingSettings, updatePricingSettings } from '@/services/settings.service'
 
 export async function GET() {
@@ -9,7 +10,10 @@ export async function GET() {
     return NextResponse.json({ pricing })
 }
 
-/** { subsidyMode?, subsidyPercent?, subsidyAmount?, soupPrice? } */
+/**
+ * { subsidyMode?, subsidyPercent?, subsidyAmount?, soupPrice? }
+ * Novi popust / cena čorbe važe za dane posle današnjeg – te porudžbine se preračunaju; prošli dani ostaju.
+ */
 export async function PATCH(req: NextRequest) {
     const auth = await requireAdmin()
     if (auth.error) return auth.error
@@ -21,7 +25,8 @@ export async function PATCH(req: NextRequest) {
             subsidyAmount: body.subsidyAmount !== undefined ? Number(body.subsidyAmount) : undefined,
             soupPrice: body.soupPrice !== undefined ? Number(body.soupPrice) : undefined,
         })
-        return NextResponse.json({ pricing })
+        const repriced = await repriceFutureOrders()
+        return NextResponse.json({ pricing, repriced })
     } catch (err) {
         return badRequest(errorMessage(err, 'Greška pri čuvanju podešavanja.'))
     }

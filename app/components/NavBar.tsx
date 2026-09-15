@@ -1,6 +1,7 @@
 'use client'
 
 import CloseIcon from '@mui/icons-material/Close'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -15,7 +16,6 @@ import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
-import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
@@ -35,6 +35,7 @@ import { useAuth } from '../auth-context'
 import { useFun } from '../fun-context'
 import BrandMark from './BrandMark'
 import NotificationBell from './NotificationBell'
+import ThemePicker from './ThemePicker'
 import ThemeToggle from './ThemeToggle'
 
 type NavItem = {
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
     { href: '/', label: 'Meni', icon: <RestaurantMenuIcon /> },
     { href: '/dug', label: 'Moj dug', icon: <ReceiptLongIcon /> },
     { href: '/pivo', label: 'Pivo', icon: <SportsBarIcon /> },
+    { href: '/statistika', label: 'Statistika', icon: <EmojiEventsIcon /> },
     { href: '/profil', label: 'Profil', icon: <PersonOutlinedIcon />, mobileOnly: true },
     {
         href: '/admin?tab=porudzbine',
@@ -108,14 +110,11 @@ export default function NavBar() {
                 sx={(t) => ({
                     backdropFilter: 'blur(12px) saturate(180%)',
                     WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-                    backgroundColor: 'rgba(248, 244, 239, 0.78)',
+                    backgroundColor: `rgba(${t.vars.palette.background.defaultChannel} / 0.8)`,
                     borderBottom: `1px solid ${t.vars.palette.divider}`,
-                    ...t.applyStyles('dark', {
-                        backgroundColor: 'rgba(20, 16, 14, 0.78)',
-                    }),
                 })}
             >
-                <Container maxWidth="lg" disableGutters>
+                <Box>
                     <Toolbar sx={{ gap: 1, px: { xs: 2, sm: 3 }, minHeight: { xs: 62, sm: 70 } }}>
                         <Box
                             component={Link}
@@ -171,6 +170,7 @@ export default function NavBar() {
                         )}
 
                         <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+                            <ThemePicker />
                             <ThemeToggle />
                         </Box>
 
@@ -218,7 +218,7 @@ export default function NavBar() {
                             </>
                         )}
                     </Toolbar>
-                </Container>
+                </Box>
             </AppBar>
 
             <Drawer
@@ -307,7 +307,12 @@ export default function NavBar() {
                     </List>
 
                     <Divider />
-                    <Stack direction="row" sx={{ p: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Stack
+                        direction="row"
+                        useFlexGap
+                        sx={{ p: 2, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}
+                    >
+                        <ThemePicker withLabel />
                         <ThemeToggle withLabel />
                         <Button
                             onClick={() => {

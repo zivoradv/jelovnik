@@ -21,8 +21,8 @@ const sans = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-    title: 'Jelovnik - naručivanje obroka',
-    description: 'Aplikacija za naručivanje dnevnih obroka.',
+    title: 'Brezna Obrok',
+    description: 'Brezna Obrok – naručivanje dnevnih obroka.',
 }
 
 export const viewport: Viewport = {

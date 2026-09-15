@@ -67,6 +67,39 @@ export function computeDayCost(items: CostItem[], s: PricingSettings): DayCost {
     return { full, subsidy, toPay: full - subsidy }
 }
 
+/**
+ * Raspoređuje popust firme po stavkama: ceo iznos ide na stavku sa najskupljom porcijom,
+ * ostale dobijaju 0. Vraća niz istog redosleda kao `units`. Koristi se pri upisu porudžbine
+ * da bi se popust „zamrznuo” uz cenu.
+ */
+export function allocateSubsidy(units: number[], s: PricingSettings): number[] {
+    const out = units.map(() => 0)
+    let best = -1
+    for (let i = 0; i < units.length; i++) {
+        if (units[i] > 0 && (best === -1 || units[i] > units[best])) best = i
+    }
+    if (best >= 0) out[best] = subsidyFor(units[best], s)
+    return out
+}
+
+export interface SnapshotItem {
+    unitPrice: number
+    quantity: number
+    subsidy: number
+}
+
+/** Obračun dana iz cena zamrznutih u bazi (orders.unit_price / orders.subsidy). */
+export function dayCostFromSnapshot(items: SnapshotItem[]): DayCost {
+    let full = 0
+    let subsidy = 0
+    for (const it of items) {
+        full += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0)
+        subsidy += Number(it.subsidy) || 0
+    }
+    subsidy = Math.min(full, subsidy)
+    return { full, subsidy, toPay: full - subsidy }
+}
+
 /** Kratak opis popusta za prikaz („50%” ili „250 RSD”). */
 export function subsidyLabel(s: PricingSettings): string {
     return s.subsidyMode === 'amount' ? rsd(s.subsidyAmount) : `${s.subsidyPercent}%`

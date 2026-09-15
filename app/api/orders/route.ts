@@ -1,35 +1,30 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/session'
+import { badRequest, DATE_RE, errorMessage, requireUser } from '@/lib/api'
 import { getCountsForDate, getUserOrdersForDate, type OrderItemInput, saveUserOrders } from '@/services/orders.service'
 
 export async function GET(req: NextRequest) {
-    const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ error: 'Niste prijavljeni.' }, { status: 401 })
+    const auth = await requireUser()
+    if (auth.error) return auth.error
 
     const date = req.nextUrl.searchParams.get('date')
-    if (!date) {
-        return NextResponse.json({ error: 'Nedostaje parametar "date".' }, { status: 400 })
-    }
+    if (!date || !DATE_RE.test(date)) return badRequest('Nedostaje parametar "date" (YYYY-MM-DD).')
 
-    const [mine, counts] = await Promise.all([getUserOrdersForDate(user.sub, date), getCountsForDate(date)])
-
+    const [mine, counts] = await Promise.all([getUserOrdersForDate(auth.user.sub, date), getCountsForDate(date)])
     return NextResponse.json({ mine, counts })
 }
 
+/** { date, items: [{ mealId, quantity, note?, withSoup? }] } – zamenjuje celu porudžbinu za taj dan. */
 export async function POST(req: NextRequest) {
-    const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ error: 'Niste prijavljeni.' }, { status: 401 })
+    const auth = await requireUser()
+    if (auth.error) return auth.error
 
     try {
         const { date, items } = await req.json()
-        if (!date) {
-            return NextResponse.json({ error: 'Nedostaje datum.' }, { status: 400 })
-        }
+        if (!date || !DATE_RE.test(String(date))) return badRequest('Nedostaje datum.')
         const list: OrderItemInput[] = Array.isArray(items) ? items : []
-        const saved = await saveUserOrders(user.sub, date, list)
+        const saved = await saveUserOrders(auth.user.sub, String(date), list)
         return NextResponse.json({ mine: saved })
     } catch (err) {
-        const message = err instanceof Error ? err.message : 'Greška pri čuvanju porudžbine.'
-        return NextResponse.json({ error: message }, { status: 400 })
+        return badRequest(errorMessage(err, 'Greška pri čuvanju porudžbine.'))
     }
 }

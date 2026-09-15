@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db, meals, orders, users } from '@/drizzle'
 import type { UserStats } from '@/lib/badges'
 import { addDays, fromISODate, toISODate } from '@/lib/date'
@@ -36,8 +36,8 @@ export async function getUserStats(userId: number): Promise<UserStats> {
 
     const perDay = new Map<string, number>()
     const perMeal = new Map<string, number>()
+    const distinct = new Set<number>()
     let portions = 0
-    let customCount = 0
     let posnoCount = 0
     let earlyBird = false
     let nightOwl = false
@@ -45,8 +45,8 @@ export async function getUserStats(userId: number): Promise<UserStats> {
     for (const r of rows) {
         portions += r.quantity
         perDay.set(r.date, (perDay.get(r.date) ?? 0) + r.quantity)
-        if (r.mealId === null) customCount += r.quantity
-        else if (r.mealName) perMeal.set(r.mealName, (perMeal.get(r.mealName) ?? 0) + r.quantity)
+        distinct.add(r.mealId)
+        if (r.mealName) perMeal.set(r.mealName, (perMeal.get(r.mealName) ?? 0) + r.quantity)
         if (r.isPosno) posnoCount += r.quantity
         const h = belgradeHour(r.createdAt)
         if (h < 8) earlyBird = true
@@ -58,7 +58,7 @@ export async function getUserStats(userId: number): Promise<UserStats> {
     return {
         days: perDay.size,
         portions,
-        customCount,
+        distinctMeals: distinct.size,
         posnoCount,
         maxPortionsInDay: Math.max(0, ...perDay.values()),
         streak: workdayStreak([...perDay.keys()]),
@@ -71,15 +71,20 @@ export async function getUserStats(userId: number): Promise<UserStats> {
 export interface LeaderboardRow {
     userId: number
     username: string
+    firstName: string
+    lastName: string
     portions: number
     days: number
-    customCount: number
+    distinctMeals: number
 }
 
 export interface MonthlyStats {
     leaderboard: LeaderboardRow[]
     topMeal: { name: string; portions: number } | null
-    improviser: { username: string; count: number } | null
+    /** Virtuoz meseca: ko je probao najviše različitih jela. */
+    virtuoz: { userId: number; username: string; firstName: string; lastName: string; distinctMeals: number } | null
+    totalPortions: number
+    totalUsers: number
 }
 
 function monthRange(yearMonth: string): [string, string] {
@@ -93,42 +98,50 @@ export async function getMonthlyStats(yearMonth: string): Promise<MonthlyStats> 
     const [start, end] = monthRange(yearMonth)
     const inMonth = and(gte(orders.date, start), lt(orders.date, end))
 
-    const [leaderboard, topMeals, improvisers] = await Promise.all([
+    const [perUser, topMeals] = await Promise.all([
         db
             .select({
                 userId: orders.userId,
                 username: users.username,
+                firstName: users.firstName,
+                lastName: users.lastName,
                 portions: sql<number>`COALESCE(SUM(${orders.quantity}), 0)::int`,
                 days: sql<number>`COUNT(DISTINCT ${orders.date})::int`,
-                customCount: sql<number>`COALESCE(SUM(${orders.quantity}) FILTER (WHERE ${orders.mealId} IS NULL), 0)::int`,
+                distinctMeals: sql<number>`COUNT(DISTINCT ${orders.mealId})::int`,
             })
             .from(orders)
             .innerJoin(users, eq(orders.userId, users.id))
             .where(inMonth)
-            .groupBy(orders.userId, users.username)
-            .orderBy(desc(sql`SUM(${orders.quantity})`), users.username)
-            .limit(10),
+            .groupBy(orders.userId, users.username, users.firstName, users.lastName)
+            .orderBy(desc(sql`SUM(${orders.quantity})`), users.username),
         db
             .select({ name: meals.name, portions: sql<number>`SUM(${orders.quantity})::int` })
             .from(orders)
             .innerJoin(meals, eq(orders.mealId, meals.id))
-            .where(and(inMonth, isNotNull(orders.mealId)))
+            .where(inMonth)
             .groupBy(meals.name)
-            .orderBy(desc(sql`SUM(${orders.quantity})`))
-            .limit(1),
-        db
-            .select({ username: users.username, count: sql<number>`SUM(${orders.quantity})::int` })
-            .from(orders)
-            .innerJoin(users, eq(orders.userId, users.id))
-            .where(and(inMonth, isNull(orders.mealId)))
-            .groupBy(users.username)
             .orderBy(desc(sql`SUM(${orders.quantity})`))
             .limit(1),
     ])
 
+    // virtuoz: najviše različitih jela; pri nerešenom – ko ima manje porcija (širina, ne količina), pa ime
+    const virtuoz = [...perUser]
+        .filter((r) => r.distinctMeals >= 2)
+        .sort((a, b) => b.distinctMeals - a.distinctMeals || a.portions - b.portions || a.username.localeCompare(b.username))[0]
+
     return {
-        leaderboard,
+        leaderboard: perUser.slice(0, 10),
         topMeal: topMeals[0] ?? null,
-        improviser: improvisers[0] ?? null,
+        virtuoz: virtuoz
+            ? {
+                  userId: virtuoz.userId,
+                  username: virtuoz.username,
+                  firstName: virtuoz.firstName,
+                  lastName: virtuoz.lastName,
+                  distinctMeals: virtuoz.distinctMeals,
+              }
+            : null,
+        totalPortions: perUser.reduce((a, r) => a + r.portions, 0),
+        totalUsers: perUser.length,
     }
 }

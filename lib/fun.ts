@@ -16,7 +16,7 @@ const MORNING = [
     'Developer voli kafu',
 ] as const
 
-const NOON = ['Podne je.', 'RUCAK', 'ITS TIME TO D-D-D-DUEL', 'Nemoj da gasis TV jel vidis da gledam <i>AKTUELNOSTI</i>'] as const
+const NOON = ['Podne je.', 'RUCAK', 'ITS TIME TO D-D-D-DUEL'] as const
 
 const AFTERNOON = [
     'Poz, {name}. Sutra je novi dan, a takođe je i prekosutra.',
@@ -96,26 +96,6 @@ export function quantityReaction(qty: number): string | null {
     return null
 }
 
-const CUSTOM_REACTIONS: [RegExp, string][] = [
-    [/pic[ae]|pizza/i, 'Pica? Ambiciozno. Držimo palčeve.'],
-    [/burek/i, 'Burek - ozbiljan izbor za ozbiljne ljude.'],
-    [/salat/i, 'Salata. Neko pazi na liniju. Respek.'],
-    [/^\s*ni[šs]ta\s*$/i, 'Ništa? To se ne naručuje >:C'],
-    [/pivo|rakij|vino/i, 'To ćemo se praviti da nismo videli.'],
-    [/kaf[aeu]/i, 'aaa stara dobra kafica, mozda da probas u kuhinji to? kafa nije rucak tho'],
-    [/sarm/i, 'Sarma van petka? Buntovnik.'],
-    [/su[šs]i|sushi/i, 'Suši iz domaće kuhinje, pa da.'],
-    [/[čc]evap/i, 'Ćevapi. Klasika, volim..'],
-    [/sladoled|tort|kola[čc]/i, 'Prvo ručak, pa slatko. Ili ne, tvoj dan.'],
-    [/djuvec/i, `NEDOSTAJE MI DJUVEC KOD CURETA </3`],
-]
-
-export function customTextReaction(text: string): string | null {
-    const t = text.trim()
-    if (t.length < 3) return null
-    return CUSTOM_REACTIONS.find(([re]) => re.test(t))?.[1] ?? null
-}
-
 export function debtRoast(unpaidTotal: number, unpaidCount: number): string {
     if (unpaidTotal <= 0) return 'Čist si kao suza. Kuvarica te voli.'
     if (unpaidCount >= 7) return `${unpaidCount} neplaćenih dana? Rekord sprata je u opasnosti.`
@@ -125,7 +105,7 @@ export function debtRoast(unpaidTotal: number, unpaidCount: number): string {
     return 'Druže… ovo više nije dug, ovo je kredit. Kuvarica čeka.'
 }
 
-export const KONAMI_MESSAGE = '↑↑↓↓←→←→BA - Šef kuhinje ti otključava tajni meni: dupla porcija! ...Samo u snovima.'
+export const KONAMI_MESSAGE = 'Šef kuhinje ti otključava tajni meni: dupla porcija! ...Samo u snovima.'
 
 export const NOT_FOUND_MESSAGES = [
     'Ova stranica je pojedena.',
@@ -135,4 +115,4 @@ export const NOT_FOUND_MESSAGES = [
 
 export const CONSOLE_BANNER = ['ako čitaš ovo, ili si radoznao ili tražiš kako da naručiš duplu porciju. Ne može.'] as const
 
-export const CONSOLE_PS = ['P.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu ili?!!!. 🤬'] as const
+export const CONSOLE_PS = ['P.S. Živorad ima admina za ovu aplikaciju. Budi fin prema njemu ili?!!!. 🤬', '↑↑↓↓←→←→BA'] as const

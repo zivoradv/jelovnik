@@ -20,6 +20,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
+import { useConfirm } from '../confirm-context'
 
 interface U {
     id: number
@@ -32,6 +33,7 @@ interface U {
 
 export default function UsersAdmin() {
     const { user: me } = useAuth()
+    const confirm = useConfirm()
     const [users, setUsers] = useState<U[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -67,7 +69,13 @@ export default function UsersAdmin() {
     }
 
     async function remove(id: number) {
-        if (!confirm('Obrisati ovog korisnika i sve njegove porudžbine?')) return
+        const ok = await confirm({
+            title: 'Obrisati korisnika?',
+            message: 'Brišu se i sve njegove porudžbine i uplate. Nije moguće dok korisnik ima neizmiren dug ili preplatu.',
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
         const res = await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' })
         if (!res.ok) {
             const data = await res.json().catch(() => ({}))

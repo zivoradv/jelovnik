@@ -73,12 +73,21 @@ export const orders = pgTable(
         userId: integer('user_id')
             .notNull()
             .references(() => users.id, { onDelete: 'cascade' }),
-        mealId: integer('meal_id').references(() => meals.id, { onDelete: 'cascade' }),
+        // restrict: jelo sa porudžbinama se ne može obrisati (istorija dugova bi nestala) – samo deaktivirati
+        mealId: integer('meal_id')
+            .notNull()
+            .references(() => meals.id, { onDelete: 'restrict' }),
         quantity: integer('quantity').notNull().default(1),
         date: date('date').notNull(),
-        customText: text('custom_text'),
         note: text('note'),
         withSoup: boolean('with_soup').notNull().default(false),
+        /**
+         * Cena jedne porcije (jelo + čorba) u trenutku naručivanja, RSD.
+         * Dug se računa iz ovoga, pa kasnija promena cene jela ne menja već zaključene račune.
+         */
+        unitPrice: integer('unit_price').notNull().default(0),
+        /** Deo koji pokriva firma – upisuje se na jednu (najskuplju) porciju dana, ostale imaju 0. */
+        subsidy: integer('subsidy').notNull().default(0),
         createdAt: timestamp('created_at').notNull().defaultNow(),
     },
     (t) => [index('orders_user_date_idx').on(t.userId, t.date), index('orders_date_idx').on(t.date)],
@@ -92,7 +101,8 @@ export const payments = pgTable(
             .notNull()
             .references(() => users.id, { onDelete: 'cascade' }),
         date: date('date').notNull(),
-        paid: boolean('paid').notNull().default(false),
+        /** Koliko je korisnik stvarno platio za taj dan (RSD); poredi se sa trenutnom cenom dana. */
+        amount: integer('amount').notNull().default(0),
         paidAt: timestamp('paid_at'),
         createdAt: timestamp('created_at').notNull().defaultNow(),
     },

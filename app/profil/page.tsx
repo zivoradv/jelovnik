@@ -4,6 +4,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import FavoriteIcon from '@mui/icons-material/Favorite'
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import RestaurantIcon from '@mui/icons-material/Restaurant'
 import SaveIcon from '@mui/icons-material/Save'
@@ -26,7 +27,6 @@ import {
     Snackbar,
     Stack,
     TextField,
-    Tooltip,
     Typography,
 } from '@mui/material'
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
@@ -34,7 +34,8 @@ import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { formatDateLong } from '@/lib/date'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
-import { ACCENT, BRAND } from '../theme'
+import { ThemeList } from '../components/ThemePicker'
+import ThemeToggle from '../components/ThemeToggle'
 
 const TAGLINES = ['Ime, prezime, lozinka. Klasika.', 'Ko si ti zapravo?']
 
@@ -89,7 +90,6 @@ export default function ProfilPage() {
 
     const profileDirty = firstName !== user.firstName || lastName !== user.lastName || username !== user.username
     const mismatch = newPassword2.length > 0 && newPassword !== newPassword2
-    const earned = badges.filter((b) => b.earned)
 
     async function saveProfile(e: FormEvent) {
         e.preventDefault()
@@ -172,10 +172,10 @@ export default function ProfilPage() {
                                 height: { xs: 88, sm: 112 },
                                 fontSize: { xs: '1.8rem', sm: '2.3rem' },
                                 fontWeight: 800,
-                                bgcolor: t.vars.palette.background.paper,
+                                bgcolor: t.vars.palette.background.default,
                                 color: t.vars.palette.primary.main,
                                 border: `4px solid ${t.vars.palette.background.paper}`,
-                                boxShadow: t.shadows[6],
+                                boxShadow: t.shadows[3],
                             })}
                         >
                             {initials(user)}
@@ -226,36 +226,19 @@ export default function ProfilPage() {
                             small
                         />
                     </Box>
-
-                    {badges.length > 0 && (
-                        <Box sx={{ mt: 2.5 }}>
-                            <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 1 }}>
-                                <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1 }}>
-                                    Zasluge
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {earned.length} / {badges.length}
-                                </Typography>
-                            </Stack>
-                            <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                                {badges.map((b) => (
-                                    <Tooltip key={b.id} title={`${b.title} – ${b.description}`}>
-                                        <Chip
-                                            size="small"
-                                            variant={b.earned ? 'filled' : 'outlined'}
-                                            label={`${b.emoji} ${b.title}`}
-                                            sx={{ opacity: b.earned ? 1 : 0.45, filter: b.earned ? 'none' : 'grayscale(1)' }}
-                                        />
-                                    </Tooltip>
-                                ))}
-                            </Stack>
-                        </Box>
-                    )}
                 </CardContent>
             </Card>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 2.5, sm: 3 }, alignItems: 'start' }}>
-                <Card>
+            <Box
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                    gap: { xs: 2.5, sm: 3 },
+                    alignItems: 'start',
+                    height: 410,
+                }}
+            >
+                <Card sx={{ minHeight: 410 }}>
                     <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
                         <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'center' }}>
                             <PersonOutlinedIcon color="primary" fontSize="small" />
@@ -368,6 +351,24 @@ export default function ProfilPage() {
                 </Card>
             </Box>
 
+            <Card>
+                <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                    <Stack direction="row" sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <PaletteOutlinedIcon color="primary" fontSize="small" />
+                            <Typography variant="h6">Izgled aplikacije</Typography>
+                        </Stack>
+                        <ThemeToggle withLabel />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Izaberi temu koja ti prija – pamti se na ovom uređaju. Svetlo/tamno biraš posebno.
+                    </Typography>
+                    <ThemeList />
+                </CardContent>
+            </Card>
+
+            {badges.length > 0 && <BadgesCard badges={badges} />}
+
             <Snackbar
                 open={!!toast}
                 autoHideDuration={2500}
@@ -398,8 +399,8 @@ function StatTile({
     return (
         <Box
             sx={(t) => ({
-                p: 1.5,
-                borderRadius: 3,
+                p: 1.25,
+                borderRadius: 1,
                 border: '1.5px solid',
                 borderColor: t.vars.palette.divider,
                 bgcolor: t.vars.palette.action.hover,
@@ -412,11 +413,11 @@ function StatTile({
                     {label}
                 </Typography>
             </Stack>
+            <Divider sx={{ my: 1 }} />
             {value === null ? (
                 <Skeleton variant="text" width={60} height={32} />
             ) : (
                 <Typography
-                    noWrap
                     title={value}
                     sx={{
                         fontFamily: 'var(--font-sans)',
@@ -434,5 +435,47 @@ function StatTile({
                 </Typography>
             )}
         </Box>
+    )
+}
+
+function BadgesCard({ badges }: { badges: Badge[] }) {
+    const earned = badges.filter((b) => b.earned).length
+    return (
+        <Card>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 2 }}>
+                    <Typography variant="h6">Tvoje zasluge</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {earned} / {badges.length}
+                    </Typography>
+                </Stack>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
+                    {badges.map((b) => (
+                        <Stack
+                            key={b.id}
+                            direction="row"
+                            spacing={1.5}
+                            sx={(t) => ({
+                                p: 1.5,
+                                borderRadius: 2.5,
+                                border: '1.5px solid',
+                                borderColor: b.earned ? 'primary.light' : t.vars.palette.divider,
+                                opacity: b.earned ? 1 : 0.5,
+                                filter: b.earned ? 'none' : 'grayscale(1)',
+                                alignItems: 'center',
+                            })}
+                        >
+                            <Typography sx={{ fontSize: 28, lineHeight: 1 }}>{b.emoji}</Typography>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 600, lineHeight: 1.3 }}>{b.title}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {b.description}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    ))}
+                </Box>
+            </CardContent>
+        </Card>
     )
 }

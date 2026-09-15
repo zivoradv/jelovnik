@@ -1,7 +1,6 @@
 'use client'
 
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import GroupIcon from '@mui/icons-material/Group'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import PaymentsIcon from '@mui/icons-material/Payments'
@@ -14,10 +13,9 @@ import DebtsAdmin from './DebtsAdmin'
 import MealsAdmin from './MealsAdmin'
 import OrdersAdmin from './OrdersAdmin'
 import RasporedAdmin from './RasporedAdmin'
-import StatsAdmin from './StatsAdmin'
 import UsersAdmin from './UsersAdmin'
 
-const TABS = ['raspored', 'jela', 'porudzbine', 'dugovi', 'korisnici', 'statistika'] as const
+const TABS = ['raspored', 'jela', 'porudzbine', 'dugovi', 'korisnici'] as const
 
 export default function AdminPage() {
     return (
@@ -75,7 +73,6 @@ function AdminInner() {
                     <Tab icon={<ListAltIcon />} iconPosition="start" label="Porudžbine" />
                     <Tab icon={<PaymentsIcon />} iconPosition="start" label="Dugovi" />
                     <Tab icon={<GroupIcon />} iconPosition="start" label="Korisnici" />
-                    <Tab icon={<EmojiEventsIcon />} iconPosition="start" label="Statistika" />
                 </Tabs>
             </Card>
 
@@ -85,7 +82,6 @@ function AdminInner() {
                 {tab === 2 && <OrdersAdmin />}
                 {tab === 3 && <DebtsAdmin />}
                 {tab === 4 && <UsersAdmin />}
-                {tab === 5 && <StatsAdmin />}
             </Box>
         </Stack>
     )

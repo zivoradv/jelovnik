@@ -2,7 +2,7 @@
     "name": "jelovnik",
     "version": "1.0.0",
     "private": true,
-    "description": "Aplikacija za naručivanje obroka - Jelovnik FAN",
+    "description": "Brezna Obrok - aplikacija za naručivanje obroka",
     "scripts": {
         "dev": "next dev",
         "build": "next build",

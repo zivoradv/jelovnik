@@ -30,8 +30,8 @@ export default function BrandMark({ size = 'md', showText = true }: { size?: 'sm
             />
 
             {showText && (
-                <Typography variant={textVariant} sx={{ fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.1, width: 180 }}>
-                    Aplikacija za narucivanje hasa msm jelovnik
+                <Typography variant={textVariant} sx={{ fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                    Brezna Obrok
                 </Typography>
             )}
         </Stack>

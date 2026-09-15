@@ -13,8 +13,9 @@ export async function GET() {
 }
 
 /**
- * { userId, date, paid }  – označi jedan dan
- * { userId, all: true }   – označi sve neplaćene dane kao plaćene
+ * { userId, date, paid: true }  – upiši trenutnu cenu dana kao plaćeno (i kad je delimično/preplaćeno: „izravnaj”)
+ * { userId, date, paid: false } – vrati dan na neplaćeno
+ * { userId, all: true }         – označi sve dane sa dugom kao plaćene
  */
 export async function POST(req: NextRequest) {
     const auth = await requireAdmin()
@@ -41,21 +42,21 @@ export async function POST(req: NextRequest) {
         const date = String(body.date || '')
         if (!DATE_RE.test(date)) return badRequest('Nedostaje datum.')
         const paid = Boolean(body.paid)
-        await setPaid(userId, date, paid)
+        const before = (await getUserBalance(userId))?.rows.find((r) => r.date === date)
+        const amount = await setPaid(userId, date, paid)
 
         const balance = await getUserBalance(userId)
-        const row = balance?.rows.find((r) => r.date === date)
         const dateLabel = formatDateLong(fromISODate(date))
         const remaining = balance && balance.unpaidTotal > 0 ? ` Preostali dug: ${rsd(balance.unpaidTotal)}.` : ' Dug je izmiren.'
         await notifyUsers([userId], {
             type: 'uplata',
             title: paid ? `Evidentirana uplata za ${dateLabel}` : `Dan ${dateLabel} vraćen na neplaćeno`,
             body: paid
-                ? `${rsd(row?.total ?? 0)} označeno kao plaćeno.${remaining}`
-                : `Iznos ${rsd(row?.total ?? 0)} ponovo je na listi za plaćanje.`,
+                ? `${rsd(amount)} označeno kao plaćeno.${remaining}`
+                : `Iznos ${rsd(before?.total ?? 0)} ponovo je na listi za plaćanje.`,
             link: '/dug',
         })
-        return NextResponse.json({ ok: true })
+        return NextResponse.json({ ok: true, amount })
     } catch (err) {
         return badRequest(errorMessage(err, 'Greška pri čuvanju.'))
     }

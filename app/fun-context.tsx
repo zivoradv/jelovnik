@@ -20,6 +20,11 @@ const FOOD = ['🥟', '🍲', '🥪', '🍛', '🥗', '🍞', '🥚', '🧀', '�
 const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a']
 const KAFANA_KEY = 'jelovnik:kafana'
 
+/** Emoji se iscrtava jednom u sličicu, pa se sličica crta (drawImage) – fillText emoji svaki frejm je skup. */
+const SPRITE_SIZE = 48
+/** Više od ovoga na 4K ekranu samo troši fill-rate, a razlika se ne vidi. */
+const MAX_DPR = 1.5
+
 interface Particle {
     x: number
     y: number
@@ -28,11 +33,31 @@ interface Particle {
     rot: number
     vr: number
     size: number
-    glyph: string
-    life: number
+    sprite: HTMLCanvasElement
+}
+
+let spriteCache: HTMLCanvasElement[] | null = null
+
+function sprites(): HTMLCanvasElement[] {
+    if (spriteCache) return spriteCache
+    spriteCache = FOOD.map((glyph) => {
+        const c = document.createElement('canvas')
+        c.width = SPRITE_SIZE
+        c.height = SPRITE_SIZE
+        const ctx = c.getContext('2d')
+        if (ctx) {
+            ctx.font = `${Math.round(SPRITE_SIZE * 0.8)}px serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(glyph, SPRITE_SIZE / 2, SPRITE_SIZE / 2 + 2)
+        }
+        return c
+    })
+    return spriteCache
 }
 
 function spawn(count: number, w: number, h: number, kind: ConfettiKind): Particle[] {
+    const list = sprites()
     return Array.from({ length: count }, () => {
         const storm = kind === 'storm'
         return {
@@ -43,8 +68,7 @@ function spawn(count: number, w: number, h: number, kind: ConfettiKind): Particl
             rot: Math.random() * Math.PI * 2,
             vr: (Math.random() - 0.5) * 0.3,
             size: 18 + Math.random() * 18,
-            glyph: FOOD[Math.floor(Math.random() * FOOD.length)],
-            life: 1,
+            sprite: list[Math.floor(Math.random() * list.length)],
         }
     })
 }
@@ -53,6 +77,7 @@ export function FunProvider({ children }: { children: ReactNode }) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const particles = useRef<Particle[]>([])
     const raf = useRef<number>(0)
+    const dpr = useRef(1)
     const [message, setMessage] = useState<string | null>(null)
     const [kafana, setKafana] = useState(false)
 
@@ -60,7 +85,10 @@ export function FunProvider({ children }: { children: ReactNode }) {
         const canvas = canvasRef.current
         const ctx = canvas?.getContext('2d')
         if (!canvas || !ctx) return
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        const w = canvas.width / dpr.current
+        const h = canvas.height / dpr.current
+        ctx.setTransform(dpr.current, 0, 0, dpr.current, 0, 0)
+        ctx.clearRect(0, 0, w, h)
         const alive: Particle[] = []
         for (const p of particles.current) {
             p.x += p.vx
@@ -68,29 +96,37 @@ export function FunProvider({ children }: { children: ReactNode }) {
             p.vy += 0.45
             p.vx *= 0.99
             p.rot += p.vr
-            if (p.y > canvas.height + 60) continue
-            ctx.save()
-            ctx.translate(p.x, p.y)
+            if (p.y > h + 60) continue
+            ctx.setTransform(dpr.current, 0, 0, dpr.current, p.x * dpr.current, p.y * dpr.current)
             ctx.rotate(p.rot)
-            ctx.font = `${p.size}px serif`
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(p.glyph, 0, 0)
-            ctx.restore()
+            ctx.drawImage(p.sprite, -p.size / 2, -p.size / 2, p.size, p.size)
             alive.push(p)
         }
         particles.current = alive
-        if (alive.length > 0) raf.current = requestAnimationFrame(tick)
-        else ctx.clearRect(0, 0, canvas.width, canvas.height)
+        if (alive.length > 0) {
+            raf.current = requestAnimationFrame(tick)
+        } else {
+            ctx.setTransform(1, 0, 0, 1, 0, 0)
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            // van ekrana kad miruje – da ne bude stalni sloj preko cele stranice
+            canvas.style.display = 'none'
+        }
     }, [])
 
     const confetti = useCallback(
         (kind: ConfettiKind = 'burst') => {
             const canvas = canvasRef.current
             if (!canvas) return
-            canvas.width = window.innerWidth
-            canvas.height = window.innerHeight
-            particles.current.push(...spawn(kind === 'storm' ? 140 : 45, canvas.width, canvas.height, kind))
+            if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+            dpr.current = Math.min(MAX_DPR, window.devicePixelRatio || 1)
+            const w = window.innerWidth
+            const h = window.innerHeight
+            if (canvas.width !== Math.round(w * dpr.current) || canvas.height !== Math.round(h * dpr.current)) {
+                canvas.width = Math.round(w * dpr.current)
+                canvas.height = Math.round(h * dpr.current)
+            }
+            canvas.style.display = 'block'
+            particles.current.push(...spawn(kind === 'storm' ? 120 : 40, w, h, kind))
             cancelAnimationFrame(raf.current)
             raf.current = requestAnimationFrame(tick)
         },
@@ -149,7 +185,15 @@ export function FunProvider({ children }: { children: ReactNode }) {
             <canvas
                 ref={canvasRef}
                 aria-hidden
-                style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2000 }}
+                style={{
+                    display: 'none',
+                    position: 'fixed',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    zIndex: 2000,
+                }}
             />
             <Snackbar
                 open={message !== null}
