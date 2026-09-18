@@ -40,7 +40,9 @@ const ICONS: Record<NotificationItem['type'], ReactNode> = {
     pivo: <SportsBarIcon fontSize="small" />,
 }
 
-const POLL_MS = 60_000
+// Retko polling + pauza dok tab nije vidljiv: svaki upit budi Neon bazu (autosuspend posle 5 min),
+// pa tab otvoren u pozadini ne sme da je drži budnom ceo dan.
+const POLL_MS = 3 * 60_000
 
 function relativeTime(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime()
@@ -71,13 +73,17 @@ export default function NotificationBell() {
     }, [])
 
     useEffect(() => {
+        const loadIfVisible = () => {
+            if (document.visibilityState === 'visible') load()
+        }
         load()
-        const id = setInterval(load, POLL_MS)
-        const onFocus = () => load()
-        window.addEventListener('focus', onFocus)
+        const id = setInterval(loadIfVisible, POLL_MS)
+        document.addEventListener('visibilitychange', loadIfVisible)
+        window.addEventListener('focus', loadIfVisible)
         return () => {
             clearInterval(id)
-            window.removeEventListener('focus', onFocus)
+            document.removeEventListener('visibilitychange', loadIfVisible)
+            window.removeEventListener('focus', loadIfVisible)
         }
     }, [load])
 
@@ -138,7 +144,7 @@ export default function NotificationBell() {
                 {items.length === 0 ? (
                     <Box sx={{ px: 2, py: 4, textAlign: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
-                            Nema obaveštenja. Tišina pre ručka.
+                            Nema obaveštenja. Sve je tako mirno... Previše mirno...
                         </Typography>
                     </Box>
                 ) : (

@@ -189,7 +189,7 @@ export default function RegisterPage() {
                         </Button>
 
                         <Typography variant="body2" align="center" color="text.secondary">
-                            Već imate nalog?{' '}
+                            you exist in database?{' '}
                             <Box
                                 component={Link}
                                 href="/login"

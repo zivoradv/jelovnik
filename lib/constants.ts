@@ -35,3 +35,17 @@ export function isWorkday(date: Date): boolean {
     const d = date.getDay()
     return d >= 1 && d <= 5
 }
+
+/** Kome idu uplate za obroke – prikazuje se na stranici „Moj dug”. */
+export const PAYMENT_RECIPIENT = {
+    name: 'Mila Đoković',
+    /** Broj računa bez crtica; za prikaz koristi formatAccountNumber. */
+    account: '265000000556911733',
+} as const
+
+/** 265000000556911733 → 265-0000005569117-33 (banka-partija-kontrolni broj). */
+export function formatAccountNumber(raw: string): string {
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length !== 18) return raw
+    return `${digits.slice(0, 3)}-${digits.slice(3, 16)}-${digits.slice(16)}`
+}

@@ -297,14 +297,15 @@ export default function DebtsAdmin() {
                         placeholder="ime, prezime ili korisničko ime"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        sx={{ minWidth: 240 }}
+                        sx={{ minWidth: { md: 240 } }}
                     />
                     <FormControlLabel
                         control={<Switch checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />}
                         label="Samo otvoreni računi"
+                        sx={{ mr: 0 }}
                     />
-                    <Box sx={{ flexGrow: 1 }} />
-                    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                    <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                         <Button
                             variant="contained"
                             startIcon={<NotificationsActiveIcon />}
@@ -340,14 +341,20 @@ export default function DebtsAdmin() {
                         const owes = b.unpaidTotal > 0
                         return (
                             <Card key={b.userId} sx={{ '&:hover': { borderColor: 'primary.light' } }}>
-                                <CardContent sx={{ '&:last-child': { pb: 1.75 }, py: 1.75 }}>
-                                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                                <CardContent sx={{ '&:last-child': { pb: 1.75 }, py: 1.75, px: { xs: 1.5, sm: 2 } }}>
+                                    {/* ceo red otvara dane – na telefonu je strelica sitna meta */}
+                                    <Stack
+                                        direction="row"
+                                        spacing={{ xs: 1, sm: 1.5 }}
+                                        onClick={() => setExpanded(open ? null : b.userId)}
+                                        sx={{ alignItems: 'center', cursor: 'pointer' }}
+                                    >
                                         <Avatar
                                             sx={(t) => ({
-                                                width: 40,
-                                                height: 40,
+                                                width: { xs: 36, sm: 40 },
+                                                height: { xs: 36, sm: 40 },
                                                 fontWeight: 700,
-                                                fontSize: '0.9rem',
+                                                fontSize: '0.85rem',
                                                 bgcolor: owes ? t.vars.palette.primary.main : t.vars.palette.action.selected,
                                                 color: owes ? t.vars.palette.primary.contrastText : t.vars.palette.text.secondary,
                                             })}
@@ -358,39 +365,48 @@ export default function DebtsAdmin() {
                                             <Typography sx={{ fontWeight: 600 }} noWrap>
                                                 {fullName(b)}
                                             </Typography>
-                                            <Typography variant="caption" color="text.secondary">
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                                 @{b.username} · {b.rows.length} {b.rows.length === 1 ? 'dan' : 'dana'}
                                                 {b.paidTotal > 0 && ` · plaćeno ${rsd(b.paidTotal)}`}
                                                 {b.overpaidTotal > 0 && ` · preplata ${rsd(b.overpaidTotal)}`}
                                             </Typography>
                                         </Box>
                                         <Stack sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
-                                            <Typography sx={{ fontWeight: 700, color: owes ? 'primary.main' : 'success.main' }}>
+                                            <Typography
+                                                sx={{
+                                                    fontWeight: 700,
+                                                    whiteSpace: 'nowrap',
+                                                    color: owes ? 'primary.main' : 'success.main',
+                                                }}
+                                            >
                                                 {owes ? rsd(b.unpaidTotal) : 'izmireno'}
                                             </Typography>
                                             {b.unpaidCount > 0 && (
-                                                <Typography variant="caption" color="text.secondary">
+                                                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                                                     {b.unpaidCount} neplać.
                                                 </Typography>
                                             )}
                                         </Stack>
                                         {owes && (
                                             <Tooltip title="Označi sve kao plaćeno">
-                                                <span>
+                                                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
                                                     <IconButton
                                                         aria-label="Označi sve kao plaćeno"
-                                                        onClick={() => payAll(b)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            payAll(b)
+                                                        }}
                                                         disabled={busy === `all|${b.userId}`}
                                                         sx={{ color: 'success.main' }}
                                                     >
                                                         <DoneAllIcon />
                                                     </IconButton>
-                                                </span>
+                                                </Box>
                                             </Tooltip>
                                         )}
                                         <IconButton
                                             aria-label={open ? 'Sakrij dane' : 'Prikaži dane'}
-                                            onClick={() => setExpanded(open ? null : b.userId)}
+                                            size="small"
                                             sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 160ms' }}
                                         >
                                             <ExpandMoreIcon />
@@ -409,13 +425,11 @@ export default function DebtsAdmin() {
                                                     <Stack
                                                         key={r.date}
                                                         direction="row"
-                                                        spacing={1.5}
-                                                        useFlexGap
+                                                        spacing={1}
                                                         sx={(t) => ({
-                                                            alignItems: 'center',
-                                                            flexWrap: 'wrap',
-                                                            px: 1,
-                                                            py: 0.5,
+                                                            alignItems: 'flex-start',
+                                                            px: { xs: 0.5, sm: 1 },
+                                                            py: 0.75,
                                                             borderRadius: 2,
                                                             opacity: settled ? 0.65 : 1,
                                                             '&:hover': { bgcolor: t.vars.palette.action.hover },
@@ -426,7 +440,7 @@ export default function DebtsAdmin() {
                                                                 settled
                                                                     ? 'Vrati na neplaćeno'
                                                                     : partial
-                                                                      ? 'Delimično plaćeno – izaberi akciju desno'
+                                                                      ? 'Delimično plaćeno – izaberi akciju ispod'
                                                                       : 'Označi kao plaćeno'
                                                             }
                                                         >
@@ -452,53 +466,80 @@ export default function DebtsAdmin() {
                                                                 />
                                                             </span>
                                                         </Tooltip>
-                                                        <Typography
-                                                            variant="body2"
-                                                            sx={{ minWidth: 96, textDecoration: settled ? 'line-through' : 'none' }}
-                                                        >
-                                                            {formatDateLong(fromISODate(r.date))}
-                                                        </Typography>
-                                                        <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 90 }}>
-                                                            {rsd(r.total)}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
-                                                            puna {rsd(r.full)}
-                                                            {r.subsidy > 0 && ` · firma ${rsd(r.subsidy)}`}
-                                                            {r.mealCount > 0 && ` · ${r.mealCount} porc.`}
-                                                            {r.mealCount === 0 && ' · porudžbina obrisana'}
-                                                            {partial && ` · plaćeno ${rsd(r.paid)}`}
-                                                            {r.status === 'delimicno' && ` · ostaje ${rsd(r.remaining)}`}
-                                                            {r.status === 'preplaceno' && ` · višak ${rsd(-r.remaining)}`}
-                                                        </Typography>
-                                                        <Chip size="small" color={st.color} variant="outlined" label={st.label} />
-                                                        {partial && (
-                                                            <Stack direction="row" spacing={0.5}>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="success"
-                                                                    disabled={busy === key}
-                                                                    onClick={() => setDay(b, r, true)}
-                                                                    sx={{ py: 0, minHeight: 26 }}
+                                                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                                            <Stack
+                                                                direction="row"
+                                                                spacing={1}
+                                                                useFlexGap
+                                                                sx={{ alignItems: 'center', flexWrap: 'wrap', minHeight: 32 }}
+                                                            >
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    sx={{ textDecoration: settled ? 'line-through' : 'none' }}
                                                                 >
-                                                                    Izravnaj na {rsd(r.total)}
-                                                                </Button>
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="text"
-                                                                    color="inherit"
-                                                                    disabled={busy === key}
-                                                                    onClick={() => setDay(b, r, false)}
-                                                                    sx={{ py: 0, minHeight: 26, color: 'text.secondary' }}
-                                                                >
-                                                                    Vrati na neplaćeno
-                                                                </Button>
+                                                                    {formatDateLong(fromISODate(r.date))}
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                                    {rsd(r.total)}
+                                                                </Typography>
+                                                                <Chip size="small" color={st.color} variant="outlined" label={st.label} />
                                                             </Stack>
-                                                        )}
+                                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                                puna {rsd(r.full)}
+                                                                {r.subsidy > 0 && ` · firma ${rsd(r.subsidy)}`}
+                                                                {r.mealCount > 0 && ` · ${r.mealCount} porc.`}
+                                                                {r.mealCount === 0 && ' · porudžbina obrisana'}
+                                                                {partial && ` · plaćeno ${rsd(r.paid)}`}
+                                                                {r.status === 'delimicno' && ` · ostaje ${rsd(r.remaining)}`}
+                                                                {r.status === 'preplaceno' && ` · višak ${rsd(-r.remaining)}`}
+                                                            </Typography>
+                                                            {partial && (
+                                                                <Stack
+                                                                    direction="row"
+                                                                    spacing={0.5}
+                                                                    useFlexGap
+                                                                    sx={{ mt: 0.75, flexWrap: 'wrap' }}
+                                                                >
+                                                                    <Button
+                                                                        size="small"
+                                                                        variant="outlined"
+                                                                        color="success"
+                                                                        disabled={busy === key}
+                                                                        onClick={() => setDay(b, r, true)}
+                                                                        sx={{ py: 0, minHeight: 26 }}
+                                                                    >
+                                                                        Izravnaj na {rsd(r.total)}
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="small"
+                                                                        variant="text"
+                                                                        color="inherit"
+                                                                        disabled={busy === key}
+                                                                        onClick={() => setDay(b, r, false)}
+                                                                        sx={{ py: 0, minHeight: 26, color: 'text.secondary' }}
+                                                                    >
+                                                                        Vrati na neplaćeno
+                                                                    </Button>
+                                                                </Stack>
+                                                            )}
+                                                        </Box>
                                                     </Stack>
                                                 )
                                             })}
                                         </Stack>
+                                        {owes && (
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="success"
+                                                startIcon={<DoneAllIcon />}
+                                                onClick={() => payAll(b)}
+                                                disabled={busy === `all|${b.userId}`}
+                                                sx={{ mt: 1.5, display: { xs: 'inline-flex', sm: 'none' } }}
+                                            >
+                                                Označi sve kao plaćeno ({rsd(b.unpaidTotal)})
+                                            </Button>
+                                        )}
                                     </Collapse>
                                 </CardContent>
                             </Card>

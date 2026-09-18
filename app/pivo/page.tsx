@@ -22,7 +22,6 @@ import {
     DialogTitle,
     Divider,
     IconButton,
-    Skeleton,
     Snackbar,
     Stack,
     TextField,
@@ -33,6 +32,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
+import PageLoader from '../components/PageLoader'
 import { useConfirm } from '../confirm-context'
 import { useFun } from '../fun-context'
 
@@ -182,13 +182,7 @@ export default function PivoPage() {
     const rest = upcoming.slice(1)
 
     if (loading) {
-        return (
-            <Stack spacing={2}>
-                <Skeleton variant="text" width={200} height={44} />
-                <Skeleton variant="rounded" height={220} />
-                <Skeleton variant="rounded" height={120} />
-            </Stack>
-        )
+        return <PageLoader />
     }
 
     return (

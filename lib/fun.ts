@@ -33,7 +33,6 @@ const AFTERNOON = [
 
 const EVENING = [
     'Dobro veče.',
-    'Veče je jbg. Baš voliš ovu aplikaciju?',
     'Tip: Postoji Tab za PIVO, klikni.',
     'Večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
     'Nemoj da gasis TV jel vidis da gledam aktuelnosti (˶˃ ᵕ ˂˶)',
@@ -44,7 +43,7 @@ const NIGHT = ['{name}, baaš voliš ovu aplikaciju?', '{name}, tri je ujutru co
 const DAY_TAGLINES: Record<number, readonly string[]> = {
     1: ['Ponedeljak, pa utorak, pa sreda...'],
     2: ['Utorak. Utorkom bas ne mogu.'],
-    3: ['Sreda. Gde je Nestorovic?'],
+    3: ['Sreda.'],
     4: ['Četvrtak je skoro petak. Skoro.'],
     5: ['PETAK. Zna se šta se jede petkom.'],
     6: ['Subota, a ti gledaš jelovnik? Respect.'],
@@ -70,6 +69,30 @@ export const LOADING_MESSAGES = [
     'Salveta je na putu…',
     'Solimo po ukusu…',
     'Čekamo da proključa…',
+] as const
+
+/** Sastojci koji kruže oko šerpe u PageLoader-u. */
+export const LOADER_INGREDIENTS = ['🧄', '🧅', '🥕', '🍅', '🌶️', '🥔', '🧂', '🥄'] as const
+
+/** Poruke za opšti loader stranice – rotiraju se dok se čeka. */
+export const PAGE_LOADING_MESSAGES = [
+    'Krademo ti nalog…',
+    'Prodajemo tvoje podatke… šalimo se. Ili?',
+    'Instaliramo virus… 43%',
+    'Šaljemo istoriju tvojih porudžbina mami…',
+    'Pitamo Živorada da li smeš da uđeš…',
+    'Brojimo dugove. Tvoje.',
+    'Grejemo server na tihoj vatri…',
+    'Tražimo ko je ostavio prljavu šerpu…',
+    'Učitavamo. Ozbiljno, ovaj put stvarno.',
+    'Kuvarica traži naočare…',
+    'Prevodimo bazu na ćirilicu…',
+    'Reciklujemo jučerašnji pasulj…',
+    'Ubeđujemo server da je ponedeljak…',
+    'Otključavamo tajni meni… nema ga.',
+    'Menjamo ti lozinku u „pasulj123”…',
+    'Skidamo ceo internet, sačekaj…',
+    'Proveravamo da li si stvarno gladan…',
 ] as const
 
 export const EMPTY_MENU_MESSAGES = [

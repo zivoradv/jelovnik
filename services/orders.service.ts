@@ -1,7 +1,7 @@
-import { and, asc, eq, gt, gte, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db, meals, type Order, orders, payments, users } from '@/drizzle'
 import { isWorkday } from '@/lib/constants'
-import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
+import { formatDateLong, fromISODate, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, isOrderingOpen } from '@/lib/deadline'
 import { allocateSubsidy, dayCostFromSnapshot, rsd, unitPrice } from '@/lib/pricing'
 import { notifyAdmins, notifyUsers } from './notifications.service'
@@ -19,6 +19,63 @@ export async function getUserOrdersForDate(userId: number, dateStr: string): Pro
         .select()
         .from(orders)
         .where(and(eq(orders.userId, userId), eq(orders.date, dateStr)))
+}
+
+export interface WeekOrderItem {
+    mealId: number
+    name: string
+    quantity: number
+    withSoup: boolean
+    note: string | null
+}
+
+export interface WeekOrderDay {
+    date: string
+    items: WeekOrderItem[]
+    /** Koliko korisnik plaća za taj dan (iz zamrznutih cena). */
+    toPay: number
+}
+
+/** Porudžbine korisnika za svih 5 radnih dana nedelje u kojoj je `anyDayIso` – za pregled „šta sam naručio”. */
+export async function getUserOrdersForWeek(userId: number, anyDayIso: string): Promise<WeekOrderDay[]> {
+    const days = workdaysOfWeek(fromISODate(anyDayIso)).map(toISODate)
+    const rows = await db
+        .select({
+            date: orders.date,
+            mealId: orders.mealId,
+            name: meals.name,
+            quantity: orders.quantity,
+            withSoup: orders.withSoup,
+            note: orders.note,
+            unitPrice: orders.unitPrice,
+            subsidy: orders.subsidy,
+        })
+        .from(orders)
+        .leftJoin(meals, eq(orders.mealId, meals.id))
+        .where(and(eq(orders.userId, userId), gte(orders.date, days[0]), lte(orders.date, days[4])))
+        .orderBy(asc(orders.date), asc(meals.name))
+
+    const byDate = new Map<string, typeof rows>()
+    for (const r of rows) {
+        const list = byDate.get(r.date) ?? []
+        list.push(r)
+        byDate.set(r.date, list)
+    }
+
+    return days.map((date) => {
+        const list = byDate.get(date) ?? []
+        return {
+            date,
+            items: list.map((r) => ({
+                mealId: r.mealId,
+                name: r.name ?? 'Obrisano jelo',
+                quantity: r.quantity,
+                withSoup: r.withSoup,
+                note: r.note,
+            })),
+            toPay: dayCostFromSnapshot(list).toPay,
+        }
+    })
 }
 
 /**

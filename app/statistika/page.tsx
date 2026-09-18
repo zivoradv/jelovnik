@@ -3,11 +3,12 @@
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
-import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
+import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { VIRTUOZ_MEALS } from '@/lib/badges'
 import { fullName } from '@/lib/users'
 import { useAuth } from '../auth-context'
+import PageLoader from '../components/PageLoader'
 
 interface LeaderboardRow {
     userId: number
@@ -116,10 +117,7 @@ export default function StatistikaPage() {
             {error && <Alert severity="error">{error}</Alert>}
 
             {loading ? (
-                <Stack spacing={1.5}>
-                    <Skeleton variant="rounded" height={96} />
-                    <Skeleton variant="rounded" height={260} />
-                </Stack>
+                <PageLoader />
             ) : board.length === 0 ? (
                 <Card sx={{ py: 6, px: 3, textAlign: 'center' }}>
                     <EmojiEventsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />

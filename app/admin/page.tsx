@@ -5,10 +5,11 @@ import GroupIcon from '@mui/icons-material/Group'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
-import { Alert, Box, Card, CircularProgress, Stack, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Card, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { useAuth } from '../auth-context'
+import PageLoader from '../components/PageLoader'
 import DebtsAdmin from './DebtsAdmin'
 import MealsAdmin from './MealsAdmin'
 import OrdersAdmin from './OrdersAdmin'
@@ -44,11 +45,7 @@ function AdminInner() {
     }
 
     if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress />
-            </Box>
-        )
+        return <PageLoader />
     }
 
     if (user?.role !== 'admin') {

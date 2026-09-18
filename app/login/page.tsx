@@ -156,7 +156,7 @@ function LoginForm() {
                         </Button>
 
                         <Typography variant="body2" align="center" color="text.secondary">
-                            Nemate nalog?{' '}
+                            bogos binted?{' '}
                             <Box
                                 component={Link}
                                 href="/register"

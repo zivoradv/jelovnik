@@ -1,13 +1,19 @@
 'use client'
 
+import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import ScheduleIcon from '@mui/icons-material/Schedule'
-import { Alert, Box, Card, CardContent, Chip, Divider, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
-import { useCallback, useEffect, useState } from 'react'
+import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Snackbar, Stack, Tooltip, Typography } from '@mui/material'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { formatAccountNumber, PAYMENT_RECIPIENT } from '@/lib/constants'
 import { formatDateLong, fromISODate } from '@/lib/date'
 import { debtRoast } from '@/lib/fun'
 import { rsd } from '@/lib/pricing'
+import { fullName } from '@/lib/users'
+import { useAuth } from '../auth-context'
+import PageLoader from '../components/PageLoader'
 
 type DebtStatus = 'placeno' | 'neplaceno' | 'delimicno' | 'preplaceno' | 'nista'
 
@@ -24,6 +30,7 @@ interface DebtRow {
 }
 
 export default function DugPage() {
+    const { user } = useAuth()
     const [rows, setRows] = useState<DebtRow[]>([])
     const [unpaidTotal, setUnpaidTotal] = useState(0)
     const [overpaidTotal, setOverpaidTotal] = useState(0)
@@ -31,6 +38,7 @@ export default function DugPage() {
     const [unpaidCount, setUnpaidCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [copied, setCopied] = useState('')
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -54,20 +62,23 @@ export default function DugPage() {
         load()
     }, [load])
 
+    async function copy(label: string, value: string) {
+        try {
+            await navigator.clipboard.writeText(value)
+            setCopied(`${label} kopiran.`)
+        } catch {
+            setCopied('Kopiranje nije uspelo – prepiši ručno.')
+        }
+    }
+
     if (loading) {
-        return (
-            <Stack spacing={2}>
-                <Skeleton variant="text" width={160} height={40} />
-                <Skeleton variant="rounded" height={132} />
-                {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} variant="rounded" height={76} />
-                ))}
-            </Stack>
-        )
+        return <PageLoader />
     }
 
     const subsidyTotal = rows.reduce((a, r) => a + r.subsidy, 0)
     const settled = unpaidTotal <= 0
+    const accountNumber = formatAccountNumber(PAYMENT_RECIPIENT.account)
+    const purpose = user ? `Obroci – ${fullName(user)}` : 'Obroci'
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3 }}>
@@ -159,6 +170,32 @@ export default function DugPage() {
                 </CardContent>
             </Card>
 
+            <Card>
+                <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                    <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
+                        <AccountBalanceOutlinedIcon color="primary" fontSize="small" />
+                        <Typography variant="h6">Podaci za uplatu</Typography>
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Sve uplate za obroke idu administratoru. Kad uplatiš, javi da evidentira uplatu – tek tada se dan vodi kao plaćen.
+                    </Typography>
+
+                    <Stack spacing={1.25}>
+                        <PaymentField label="Prima" value={PAYMENT_RECIPIENT.name} />
+                        <PaymentField label="Broj računa" value={accountNumber} mono onCopy={() => copy('Broj računa', accountNumber)} />
+                        <PaymentField label="Svrha uplate" value={purpose} onCopy={() => copy('Svrha uplate', purpose)} />
+                        {unpaidTotal > 0 && (
+                            <PaymentField
+                                label="Iznos"
+                                value={rsd(unpaidTotal)}
+                                highlight
+                                onCopy={() => copy('Iznos', String(unpaidTotal))}
+                            />
+                        )}
+                    </Stack>
+                </CardContent>
+            </Card>
+
             {overpaidTotal > 0 && (
                 <Alert severity="info">
                     Za neki dan je plaćeno više nego što porudžbina sada košta (promenio si porudžbinu posle uplate). Razliku od{' '}
@@ -182,6 +219,71 @@ export default function DugPage() {
                         <DebtRowCard key={r.date} row={r} />
                     ))}
                 </Stack>
+            )}
+
+            <Snackbar
+                open={!!copied}
+                autoHideDuration={2000}
+                onClose={() => setCopied('')}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert severity="success" variant="filled" onClose={() => setCopied('')}>
+                    {copied}
+                </Alert>
+            </Snackbar>
+        </Stack>
+    )
+}
+
+function PaymentField({
+    label,
+    value,
+    mono,
+    highlight,
+    onCopy,
+}: {
+    label: string
+    value: ReactNode
+    mono?: boolean
+    highlight?: boolean
+    onCopy?: () => void
+}) {
+    return (
+        <Stack
+            direction="row"
+            spacing={1.5}
+            sx={(t) => ({
+                alignItems: 'center',
+                px: 1.5,
+                py: 1,
+                borderRadius: 2.5,
+                border: '1.5px solid',
+                borderColor: t.vars.palette.divider,
+                bgcolor: t.vars.palette.action.hover,
+            })}
+        >
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                    {label}
+                </Typography>
+                <Typography
+                    sx={{
+                        fontWeight: 700,
+                        fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : undefined,
+                        letterSpacing: mono ? '0.04em' : undefined,
+                        color: highlight ? 'primary.main' : 'text.primary',
+                        overflowWrap: 'anywhere',
+                    }}
+                >
+                    {value}
+                </Typography>
+            </Box>
+            {onCopy && (
+                <Tooltip title="Kopiraj">
+                    <IconButton size="small" aria-label={`Kopiraj: ${label}`} onClick={onCopy}>
+                        <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
             )}
         </Stack>
     )

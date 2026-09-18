@@ -3,8 +3,10 @@
 import AddIcon from '@mui/icons-material/Add'
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining'
 import CheckIcon from '@mui/icons-material/Check'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import EditIcon from '@mui/icons-material/Edit'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import RamenDiningIcon from '@mui/icons-material/RamenDining'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
@@ -20,7 +22,6 @@ import {
     CardContent,
     Checkbox,
     Chip,
-    CircularProgress,
     Divider,
     FormControlLabel,
     IconButton,
@@ -34,11 +35,12 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { WEEKDAYS } from '@/lib/constants'
-import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
+import { addDays, formatDateLong, formatDateShort, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, firstOrderableWorkday, isOrderingOpen } from '@/lib/deadline'
 import { EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
 import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, subsidyFor, unitPrice } from '@/lib/pricing'
 import { useAuth } from './auth-context'
+import PageLoader from './components/PageLoader'
 import { useFun } from './fun-context'
 
 interface Meal {
@@ -59,10 +61,30 @@ interface OrderRow {
     quantity: number
 }
 
+interface OrderItem {
+    mealId: number
+    quantity: number
+    note: string | null
+    withSoup: boolean
+}
+
+interface WeekOrderDay {
+    date: string
+    items: { mealId: number; name: string; quantity: number; withSoup: boolean; note: string | null }[]
+    toPay: number
+}
+
 function todayMidnight(): Date {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
     return d
+}
+
+/** Stabilan otisak porudžbine – poredi se sačuvano sa trenutnim da bi dugme znalo da li ima izmena. */
+function orderKey(items: OrderItem[]): string {
+    return JSON.stringify(
+        [...items].sort((a, b) => a.mealId - b.mealId).map((it) => [it.mealId, it.quantity, it.note ?? '', it.withSoup ? 1 : 0]),
+    )
 }
 
 export default function HomePage() {
@@ -89,8 +111,12 @@ export default function HomePage() {
     const [quantities, setQuantities] = useState<Record<number, number>>({})
     const [notes, setNotes] = useState<Record<number, string>>({})
     const [soups, setSoups] = useState<Record<number, boolean>>({})
+    /** Otisak porudžbine kakva je u bazi za izabrani dan; null = ništa nije sačuvano. */
+    const [savedKey, setSavedKey] = useState<string | null>(null)
+    const [weekOrders, setWeekOrders] = useState<WeekOrderDay[]>([])
 
     const weekDays = useMemo(() => workdaysOfWeek(weekAnchor), [weekAnchor])
+    const weekStart = toISODate(weekDays[0])
     const selDateObj = fromISODate(selectedDate)
     const isPast = !isOrderingOpen(selectedDate)
 
@@ -124,11 +150,31 @@ export default function HomePage() {
             setQuantities(qty)
             setNotes(noteMap)
             setSoups(soupMap)
+            setSavedKey(
+                mine.length > 0
+                    ? orderKey(
+                          mine.map((o) => ({
+                              mealId: o.mealId,
+                              quantity: o.quantity ?? 1,
+                              note: o.note || null,
+                              withSoup: Boolean(o.withSoup),
+                          })),
+                      )
+                    : null,
+            )
         } catch {
             setError('Greška pri učitavanju menija.')
         } finally {
             setLoading(false)
         }
+    }, [])
+
+    const loadWeek = useCallback(async (anyDayIso: string) => {
+        try {
+            const res = await fetch(`/api/orders/week?date=${anyDayIso}`)
+            const data = await res.json()
+            setWeekOrders(data.days || [])
+        } catch {}
     }, [])
 
     const loadBadges = useCallback(async () => {
@@ -142,6 +188,10 @@ export default function HomePage() {
     useEffect(() => {
         if (user) loadDay(selectedDate)
     }, [user, selectedDate, loadDay])
+
+    useEffect(() => {
+        if (user) loadWeek(weekStart)
+    }, [user, weekStart, loadWeek])
 
     useEffect(() => {
         if (user) loadBadges()
@@ -183,16 +233,24 @@ export default function HomePage() {
         setSelectedDate(toISODate(initialDate))
     }
 
+    // ono što bi otišlo na server – isto normalizovano kao što server vraća, da bi poređenje sa sačuvanim bilo pošteno
+    const items = useMemo<OrderItem[]>(
+        () =>
+            Object.entries(quantities).map(([mealId, qty]) => ({
+                mealId: Number(mealId),
+                quantity: qty,
+                note: (notes[Number(mealId)] || '').trim() || null,
+                withSoup: Boolean(soups[Number(mealId)]),
+            })),
+        [quantities, notes, soups],
+    )
+    const hasSaved = savedKey !== null
+    const dirty = orderKey(items) !== (savedKey ?? orderKey([]))
+
     async function save() {
         setSaving(true)
         setError('')
         try {
-            const items = Object.entries(quantities).map(([mealId, qty]) => ({
-                mealId: Number(mealId),
-                quantity: qty,
-                note: notes[Number(mealId)] || null,
-                withSoup: Boolean(soups[Number(mealId)]),
-            }))
             const res = await fetch('/api/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -202,7 +260,7 @@ export default function HomePage() {
             if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju.')
             setSavedMessage(randomOf(SAVE_MESSAGES))
             if (items.length > 0) confetti('burst')
-            await Promise.all([loadDay(selectedDate), loadBadges()])
+            await Promise.all([loadDay(selectedDate), loadWeek(weekStart), loadBadges()])
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Greška pri čuvanju.')
         } finally {
@@ -241,11 +299,7 @@ export default function HomePage() {
     const portionCount = useMemo(() => receiptItems.reduce((a, it) => a + it.qty, 0), [receiptItems])
 
     if (authLoading || !user) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress />
-            </Box>
-        )
+        return <PageLoader />
     }
 
     const todayIso = toISODate(todayMidnight())
@@ -253,6 +307,7 @@ export default function HomePage() {
     const selectedDayName = WEEKDAYS.find((w) => w.value === selDateObj.getDay())?.label ?? ''
     const hello = greeting(user.firstName || user.username, new Date(), helloShift)
     const earned = badges.filter((b) => b.earned)
+    const orderedDates = new Set(weekOrders.filter((d) => d.items.length > 0).map((d) => d.date))
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
@@ -283,6 +338,8 @@ export default function HomePage() {
                     </Stack>
                 )}
             </Box>
+
+            <WeekSummary days={weekOrders} selectedDate={selectedDate} onPick={setSelectedDate} />
 
             <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
                 <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -322,6 +379,7 @@ export default function HomePage() {
                         const isToday = iso === todayIso
                         const selected = iso === selectedDate
                         const past = !isOrderingOpen(iso)
+                        const ordered = orderedDates.has(iso)
                         return (
                             <ButtonBase
                                 key={iso}
@@ -351,15 +409,24 @@ export default function HomePage() {
                                 <Typography variant="body2" sx={{ fontWeight: selected ? 700 : 500, lineHeight: 1.2 }}>
                                     {String(d.getDate()).padStart(2, '0')}.{String(d.getMonth() + 1).padStart(2, '0')}.
                                 </Typography>
-                                <Box
-                                    sx={{
-                                        width: 5,
-                                        height: 5,
-                                        mt: 0.25,
-                                        borderRadius: '50%',
-                                        bgcolor: isToday ? (selected ? 'primary.contrastText' : 'secondary.main') : 'transparent',
-                                    }}
-                                />
+                                <Stack direction="row" spacing={0.5} sx={{ mt: 0.25, height: 12, alignItems: 'center' }}>
+                                    {isToday && (
+                                        <Box
+                                            sx={{
+                                                width: 5,
+                                                height: 5,
+                                                borderRadius: '50%',
+                                                bgcolor: selected ? 'primary.contrastText' : 'secondary.main',
+                                            }}
+                                        />
+                                    )}
+                                    {ordered && (
+                                        <CheckCircleIcon
+                                            titleAccess="Poručeno"
+                                            sx={{ fontSize: 12, color: selected ? 'primary.contrastText' : 'success.main' }}
+                                        />
+                                    )}
+                                </Stack>
                             </ButtonBase>
                         )
                     })}
@@ -454,7 +521,15 @@ export default function HomePage() {
                                 top: 90,
                             }}
                         >
-                            <ReceiptCard items={receiptItems} cost={cost} portionCount={portionCount} saving={saving} onSave={save} />
+                            <ReceiptCard
+                                items={receiptItems}
+                                cost={cost}
+                                portionCount={portionCount}
+                                saving={saving}
+                                hasSaved={hasSaved}
+                                dirty={dirty}
+                                onSave={save}
+                            />
                         </Box>
                     )}
                 </Box>
@@ -484,12 +559,12 @@ export default function HomePage() {
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                     {portionCount} porcija
+                                    {hasSaved && !dirty && ' · poručeno'}
+                                    {hasSaved && dirty && ' · izmenjeno'}
                                 </Typography>
                                 <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{cost.toPay > 0 ? rsd(cost.toPay) : '-'}</Typography>
                             </Box>
-                            <Button variant="contained" onClick={save} disabled={saving} startIcon={saving ? undefined : <CheckIcon />}>
-                                {saving ? 'Čuvanje...' : 'Sačuvaj'}
-                            </Button>
+                            <SaveButton saving={saving} hasSaved={hasSaved} dirty={dirty} onSave={save} compact />
                         </Stack>
                     </Card>
                 </Box>
@@ -542,6 +617,128 @@ function Section({
     )
 }
 
+/** „Poručeno ove nedelje” – na jedan pogled šta je uzeto koji dan, bez otvaranja svakog dana posebno. */
+function WeekSummary({ days, selectedDate, onPick }: { days: WeekOrderDay[]; selectedDate: string; onPick: (iso: string) => void }) {
+    const ordered = days.filter((d) => d.items.length > 0)
+    return (
+        <Card sx={{ p: 1 }}>
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mb: 0.5, px: 0.5, my: 1 }}>
+                <ReceiptLongIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1 }}>
+                    Poručeno ove nedelje
+                </Typography>
+            </Stack>
+            {ordered.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 0.5, fontStyle: 'italic' }}>
+                    Ove nedelje još ništa nije poručeno.
+                </Typography>
+            ) : (
+                <Stack spacing={0.25}>
+                    {ordered.map((d) => {
+                        const date = fromISODate(d.date)
+                        const selected = d.date === selectedDate
+                        const label = d.items
+                            .map((it) => `${it.name}${it.withSoup ? ' + čorba' : ''}${it.quantity > 1 ? ` ×${it.quantity}` : ''}`)
+                            .join(', ')
+                        const notes = d.items
+                            .filter((it) => it.note)
+                            .map((it) => `${it.name}: ${it.note}`)
+                            .join(' · ')
+                        return (
+                            <ButtonBase
+                                key={d.date}
+                                onClick={() => onPick(d.date)}
+                                title={notes || undefined}
+                                sx={(t) => ({
+                                    width: '100%',
+                                    justifyContent: 'flex-start',
+                                    gap: 1,
+                                    px: 0.75,
+                                    py: 0.5,
+                                    borderRadius: 2,
+                                    textAlign: 'left',
+                                    bgcolor: selected ? t.vars.palette.action.selected : 'transparent',
+                                    '&:hover': { bgcolor: t.vars.palette.action.hover },
+                                })}
+                            >
+                                <Typography
+                                    variant="caption"
+                                    sx={{ fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', minWidth: 64 }}
+                                >
+                                    {formatDateShort(date)}
+                                </Typography>
+                                <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }}>
+                                    {label}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                    {rsd(d.toPay)}
+                                </Typography>
+                            </ButtonBase>
+                        )
+                    })}
+                </Stack>
+            )}
+            <Divider sx={{ mt: 1.5 }} />
+        </Card>
+    )
+}
+
+/** Sačuvaj → Ažuriraj (ima izmena) → Poručeno (sve je već u bazi). */
+function SaveButton({
+    saving,
+    hasSaved,
+    dirty,
+    onSave,
+    compact,
+}: {
+    saving: boolean
+    hasSaved: boolean
+    dirty: boolean
+    onSave: () => void
+    compact?: boolean
+}) {
+    const size = compact ? undefined : 'large'
+    const layout = compact ? {} : { fullWidth: true, sx: { mt: 2.5 } }
+
+    if (saving) {
+        return (
+            <Button variant="contained" size={size} disabled {...layout}>
+                Čuvanje...
+            </Button>
+        )
+    }
+    if (hasSaved && !dirty) {
+        return (
+            <Button
+                variant="outlined"
+                color="success"
+                size={size}
+                disabled
+                startIcon={<CheckCircleIcon />}
+                {...layout}
+                sx={{
+                    ...layout.sx,
+                    '&.Mui-disabled': { color: 'success.main', borderColor: 'success.main', opacity: 0.85 },
+                }}
+            >
+                Poručeno
+            </Button>
+        )
+    }
+    if (hasSaved) {
+        return (
+            <Button variant="contained" size={size} onClick={onSave} startIcon={<EditIcon />} {...layout}>
+                {compact ? 'Ažuriraj' : 'Ažuriraj porudžbinu'}
+            </Button>
+        )
+    }
+    return (
+        <Button variant="contained" size={size} onClick={onSave} startIcon={<CheckIcon />} {...layout}>
+            {compact ? 'Sačuvaj' : 'Sačuvaj porudžbinu'}
+        </Button>
+    )
+}
+
 function MenuSkeleton() {
     const message = useMemo(() => randomOf(LOADING_MESSAGES), [])
     return (
@@ -576,12 +773,16 @@ function ReceiptCard({
     cost,
     portionCount,
     saving,
+    hasSaved,
+    dirty,
     onSave,
 }: {
     items: { id: number; name: string; qty: number; price: number; withSoup: boolean }[]
     cost: DayCost
     portionCount: number
     saving: boolean
+    hasSaved: boolean
+    dirty: boolean
     onSave: () => void
 }) {
     const empty = items.length === 0
@@ -590,7 +791,19 @@ function ReceiptCard({
             <CardContent sx={{ p: 2.5 }}>
                 <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
                     <ReceiptLongIcon color="primary" fontSize="small" />
-                    <Typography variant="h6">Tvoja porudžbina</Typography>
+                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                        Porudžbina
+                    </Typography>
+                    {hasSaved &&
+                        (dirty ? (
+                            <Tooltip title="Ima izmena koje još nisu sačuvane">
+                                <Chip size="small" color="warning" variant="outlined" icon={<EditIcon />} label="Izmenjeno" />
+                            </Tooltip>
+                        ) : (
+                            <Tooltip title="Ova porudžbina je sačuvana. Promeni nešto pa klikni „Ažuriraj”.">
+                                <Chip size="small" color="success" variant="outlined" icon={<CheckCircleIcon />} label="Poručeno" />
+                            </Tooltip>
+                        ))}
                 </Stack>
 
                 <Divider sx={{ mb: 1.75, borderStyle: 'dashed' }} />
@@ -668,17 +881,7 @@ function ReceiptCard({
                     Firma pokriva deo cene jedne porcije dnevno; svaka dodatna porcija plaća se u celosti.
                 </Typography>
 
-                <Button
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    sx={{ mt: 2.5 }}
-                    onClick={onSave}
-                    disabled={saving}
-                    startIcon={saving ? undefined : <CheckIcon />}
-                >
-                    {saving ? 'Čuvanje...' : 'Sačuvaj porudžbinu'}
-                </Button>
+                <SaveButton saving={saving} hasSaved={hasSaved} dirty={dirty} onSave={onSave} />
             </CardContent>
         </Card>
     )
@@ -786,7 +989,7 @@ function MealItem({
                             {price > 0 && (
                                 <Tooltip
                                     arrow
-                                    placement="left"
+                                    placement="top"
                                     title={
                                         <Box sx={{ lineHeight: 1.5 }}>
                                             <b>Ti plaćaš {rsd(unit - subsidy)}</b>

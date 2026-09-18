@@ -19,7 +19,6 @@ import {
     Card,
     CardContent,
     Chip,
-    CircularProgress,
     Divider,
     IconButton,
     InputAdornment,
@@ -34,6 +33,7 @@ import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { formatDateLong } from '@/lib/date'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
+import PageLoader from '../components/PageLoader'
 import { ThemeList } from '../components/ThemePicker'
 import ThemeToggle from '../components/ThemeToggle'
 
@@ -81,11 +81,7 @@ export default function ProfilPage() {
     }, [user])
 
     if (loading || !user) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                <CircularProgress />
-            </Box>
-        )
+        return <PageLoader />
     }
 
     const profileDirty = firstName !== user.firstName || lastName !== user.lastName || username !== user.username
@@ -234,11 +230,10 @@ export default function ProfilPage() {
                     display: 'grid',
                     gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
                     gap: { xs: 2.5, sm: 3 },
-                    alignItems: 'start',
-                    height: 410,
+                    alignItems: 'stretch',
                 }}
             >
-                <Card sx={{ minHeight: 410 }}>
+                <Card>
                     <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
                         <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'center' }}>
                             <PersonOutlinedIcon color="primary" fontSize="small" />
@@ -424,6 +419,7 @@ function StatTile({
                         fontWeight: 700,
                         fontSize: small ? '1.05rem' : '1.7rem',
                         lineHeight: 1.2,
+                        overflowWrap: 'anywhere',
                     }}
                 >
                     {value}
