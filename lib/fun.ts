@@ -16,16 +16,13 @@ const MORNING = [
     'Developer voli kafu',
 ] as const
 
-const NOON = ['Podne je.', 'RUCAK', 'ITS TIME TO D-D-D-DUEL'] as const
+const NOON = ['Podne je.', 'RUCAK', 'ITS TIME TO D-D-D-DUEL', 'Tip: Postoji Tab za PIVO, klikni.'] as const
 
 const AFTERNOON = [
     'Poz, {name}. Sutra je novi dan, a takođe je i prekosutra.',
     'Zdravo, {name}. Danas je dan, a sutra je... novi dan.',
     'Volim osmeh tvoj baš dobro ti stoji - Toše Proeski',
     'Ćao, {name}. Si znao da je jednom kauboj ušao u restoran i pitao ko je Cile a ko Mile? Upucao je obojicu jer kod njega nema cile mile. lol. A takođe nema ni haša ako ga ne naručiš!! Tako da možda bi valjalo da pogledaš listu dole?',
-    'Chuck Norris bi pojeo sve sa ovog menija',
-    '{name}, ovo je zlatno vrijeme narucivanja hasa. a kad smo kod zlatnog vrijemena?? Si cuo vic o zlatnoj zabi?',
-    'Ako se neko naljuti na neku foru znajte da developer NIT JE LUK JEO NIT MIRISAO, kontas kao ovo je jelovnik a luk ide u hranu pa kao',
     'Jel znas da se otvorio KFC u BIGU???',
     'BIG KAHUNA BURGER ili ti ROYAAALE WITH CHEESE',
     'Jel neko za CHESS?',
@@ -33,12 +30,11 @@ const AFTERNOON = [
 
 const EVENING = [
     'Dobro veče.',
-    'Tip: Postoji Tab za PIVO, klikni.',
     'Večernje vesti: sutra se jede. Više o tome u nastavku, tj. dole.',
     'Nemoj da gasis TV jel vidis da gledam aktuelnosti (˶˃ ᵕ ˂˶)',
 ] as const
 
-const NIGHT = ['{name}, baaš voliš ovu aplikaciju?', '{name}, tri je ujutru covjece.', 'Poz, {name}.'] as const
+const NIGHT = ['{name}, tri je ujutru covjece.', 'Poz, {name}.'] as const
 
 const DAY_TAGLINES: Record<number, readonly string[]> = {
     1: ['Ponedeljak, pa utorak, pa sreda...'],
@@ -71,10 +67,8 @@ export const LOADING_MESSAGES = [
     'Čekamo da proključa…',
 ] as const
 
-/** Sastojci koji kruže oko šerpe u PageLoader-u. */
 export const LOADER_INGREDIENTS = ['🧄', '🧅', '🥕', '🍅', '🌶️', '🥔', '🧂', '🥄'] as const
 
-/** Poruke za opšti loader stranice – rotiraju se dok se čeka. */
 export const PAGE_LOADING_MESSAGES = [
     'Krademo ti nalog…',
     'Prodajemo tvoje podatke… šalimo se. Ili?',
@@ -124,11 +118,11 @@ export function debtRoast(unpaidTotal: number, unpaidCount: number): string {
     if (unpaidCount >= 7) return `${unpaidCount} neplaćenih dana? Rekord sprata je u opasnosti.`
     if (unpaidTotal < 1000) return 'Sitnica. Ali sitnice se pamte.'
     if (unpaidTotal < 3000) return 'Polako raste. Kao testo.'
-    if (unpaidTotal < 6000) return 'Ovo je već ozbiljna tepsija.'
-    return 'Druže… ovo više nije dug, ovo je kredit. Kuvarica čeka.'
+    if (unpaidTotal < 6000) return 'Poseti Milu.'
+    return 'Druže… ovo više nije dug, ovo je kredit.'
 }
 
-export const KONAMI_MESSAGE = 'Šef kuhinje ti otključava tajni meni: dupla porcija! ...Samo u snovima.'
+export const KONAMI_MESSAGE = 'Ako si stvarno ovo pronasao castim te has...'
 
 export const NOT_FOUND_MESSAGES = [
     'Ova stranica je pojedena.',

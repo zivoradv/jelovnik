@@ -440,7 +440,7 @@ function BadgesCard({ badges }: { badges: Badge[] }) {
         <Card>
             <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 2 }}>
-                    <Typography variant="h6">Tvoje zasluge</Typography>
+                    <Typography variant="h6">Achievements</Typography>
                     <Typography variant="body2" color="text.secondary">
                         {earned} / {badges.length}
                     </Typography>
