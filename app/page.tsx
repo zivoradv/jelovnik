@@ -6,6 +6,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import CloseIcon from '@mui/icons-material/Close'
 import EditIcon from '@mui/icons-material/Edit'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import RamenDiningIcon from '@mui/icons-material/RamenDining'
@@ -15,6 +16,7 @@ import RemoveIcon from '@mui/icons-material/Remove'
 import SoupKitchenIcon from '@mui/icons-material/SoupKitchen'
 import {
     Alert,
+    Avatar,
     Box,
     Button,
     ButtonBase,
@@ -22,6 +24,10 @@ import {
     CardContent,
     Checkbox,
     Chip,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Divider,
     FormControlLabel,
     IconButton,
@@ -29,8 +35,10 @@ import {
     Snackbar,
     Stack,
     TextField,
+    type Theme,
     Tooltip,
     Typography,
+    useMediaQuery,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
@@ -39,6 +47,7 @@ import { addDays, formatDateLong, formatDateShort, fromISODate, startOfWeek, toI
 import { deadlineLabel, firstOrderableWorkday, isOrderingOpen } from '@/lib/deadline'
 import { EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
 import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, subsidyFor, unitPrice } from '@/lib/pricing'
+import { fullName, initials } from '@/lib/users'
 import { useAuth } from './auth-context'
 import PageLoader from './components/PageLoader'
 import { useFun } from './fun-context'
@@ -74,6 +83,26 @@ interface WeekOrderDay {
     toPay: number
 }
 
+/** Ko je naručio koje jelo za izabrani dan – za spisak koji iskače klikom na broj porcija. */
+interface Orderer {
+    mealId: number
+    userId: number
+    username: string
+    firstName: string
+    lastName: string
+    quantity: number
+    withSoup: boolean
+}
+
+/** 1 porcija, 2–4 porcije, 5+ porcija (11–14 su izuzetak: 12 porcija). */
+function portionsLabel(n: number): string {
+    const lastTwo = n % 100
+    if (lastTwo >= 11 && lastTwo <= 14) return `${n} porcija`
+    const last = n % 10
+    if (last >= 2 && last <= 4) return `${n} porcije`
+    return `${n} porcija`
+}
+
 function todayMidnight(): Date {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -101,6 +130,9 @@ export default function HomePage() {
     const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING)
     const [templateName, setTemplateName] = useState<string | null>(null)
     const [counts, setCounts] = useState<Record<number, number>>({})
+    const [orderers, setOrderers] = useState<Orderer[]>([])
+    /** Jelo čiji se spisak naručilaca trenutno prikazuje. */
+    const [peopleFor, setPeopleFor] = useState<Meal | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
@@ -137,6 +169,7 @@ export default function HomePage() {
                 countMap[c.mealId] = c.count
             }
             setCounts(countMap)
+            setOrderers(ordersData.who || [])
 
             const mine: OrderRow[] = ordersData.mine || []
             const qty: Record<number, number> = {}
@@ -270,6 +303,16 @@ export default function HomePage() {
 
     const kuvana = menu.filter((m) => m.category === 'kuvano')
     const suva = menu.filter((m) => m.category === 'suvo')
+
+    const orderersByMeal = useMemo(() => {
+        const map = new Map<number, Orderer[]>()
+        for (const o of orderers) {
+            const list = map.get(o.mealId) ?? []
+            list.push(o)
+            map.set(o.mealId, list)
+        }
+        return map
+    }, [orderers])
 
     const receiptItems = useMemo(
         () =>
@@ -479,6 +522,7 @@ export default function HomePage() {
                                         onQty={(q) => setQty(m.id, q)}
                                         onNote={(v) => setNotes((n) => ({ ...n, [m.id]: v }))}
                                         onSoup={() => {}}
+                                        onShowPeople={() => setPeopleFor(m)}
                                     />
                                 ))
                             )}
@@ -505,6 +549,7 @@ export default function HomePage() {
                                         onQty={(q) => setQty(m.id, q)}
                                         onNote={() => {}}
                                         onSoup={(v) => setSoups((s) => ({ ...s, [m.id]: v }))}
+                                        onShowPeople={() => setPeopleFor(m)}
                                     />
                                 ))}
                             </Section>
@@ -569,6 +614,14 @@ export default function HomePage() {
                     </Card>
                 </Box>
             )}
+
+            <OrderersDialog
+                meal={peopleFor}
+                people={peopleFor ? (orderersByMeal.get(peopleFor.id) ?? []) : []}
+                date={selectedDate}
+                meId={user.id}
+                onClose={() => setPeopleFor(null)}
+            />
 
             <Snackbar
                 open={savedMessage !== null}
@@ -887,6 +940,106 @@ function ReceiptCard({
     )
 }
 
+/**
+ * „Ko je naručio ovo jelo” – iskače klikom na broj porcija uz jelo.
+ * Na telefonu ide preko celog ekrana sa „×” u zaglavlju, na većim ekranima je običan dijalog.
+ */
+function OrderersDialog({
+    meal,
+    people,
+    date,
+    meId,
+    onClose,
+}: {
+    meal: Meal | null
+    people: Orderer[]
+    date: string
+    meId: number
+    onClose: () => void
+}) {
+    const fullScreen = useMediaQuery((t: Theme) => t.breakpoints.down('sm'))
+    const portions = people.reduce((a, p) => a + p.quantity, 0)
+    const soups = people.filter((p) => p.withSoup).reduce((a, p) => a + p.quantity, 0)
+
+    return (
+        <Dialog open={!!meal} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="xs" scroll="paper">
+            <DialogTitle component="div" sx={{ pr: 7 }}>
+                <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }}>{meal?.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                    {formatDateLong(fromISODate(date))} · {portionsLabel(portions)}
+                    {soups > 0 && ` · ${soups} sa čorbom`}
+                </Typography>
+                <IconButton aria-label="Zatvori" onClick={onClose} sx={{ position: 'absolute', right: 8, top: 8, color: 'text.secondary' }}>
+                    <CloseIcon />
+                </IconButton>
+            </DialogTitle>
+            <Divider />
+            <DialogContent sx={{ px: { xs: 1.5, sm: 2.5 }, py: 1.5 }}>
+                {people.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                        Još niko nije naručio ovo jelo.
+                    </Typography>
+                ) : (
+                    <Stack spacing={0.5}>
+                        {people.map((p) => {
+                            const me = p.userId === meId
+                            return (
+                                <Stack
+                                    key={p.userId}
+                                    direction="row"
+                                    spacing={1.5}
+                                    sx={(t) => ({
+                                        alignItems: 'center',
+                                        px: 1,
+                                        py: 0.75,
+                                        borderRadius: 2,
+                                        bgcolor: me ? t.vars.palette.action.selected : 'transparent',
+                                    })}
+                                >
+                                    <Avatar
+                                        sx={(t) => ({
+                                            width: 34,
+                                            height: 34,
+                                            fontSize: '0.8rem',
+                                            fontWeight: 700,
+                                            bgcolor: me ? t.vars.palette.primary.main : t.vars.palette.action.hover,
+                                            color: me ? t.vars.palette.primary.contrastText : t.vars.palette.text.secondary,
+                                        })}
+                                    >
+                                        {initials(p)}
+                                    </Avatar>
+                                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                        <Typography sx={{ fontWeight: 600 }} noWrap>
+                                            {fullName(p)}
+                                            {me && ' (ti)'}
+                                        </Typography>
+                                        {p.withSoup && (
+                                            <Typography variant="caption" color="text.secondary">
+                                                sa čorbom
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                    {p.quantity > 1 && <Chip size="small" label={`×${p.quantity}`} variant="outlined" />}
+                                </Stack>
+                            )
+                        })}
+                    </Stack>
+                )}
+            </DialogContent>
+            {fullScreen && (
+                <>
+                    <Divider />
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button fullWidth variant="contained" onClick={onClose}>
+                            Zatvori
+                        </Button>
+                    </DialogActions>
+                </>
+            )}
+        </Dialog>
+    )
+}
+
 function MealItem({
     meal,
     qty,
@@ -899,6 +1052,7 @@ function MealItem({
     onQty,
     onNote,
     onSoup,
+    onShowPeople,
 }: {
     meal: Meal
     qty: number
@@ -911,6 +1065,7 @@ function MealItem({
     onQty: (q: number) => void
     onNote: (v: string) => void
     onSoup: (v: boolean) => void
+    onShowPeople: () => void
 }) {
     const checked = qty > 0
     const price = Number(meal.price) || 0
@@ -1034,13 +1189,23 @@ function MealItem({
                                 />
                             )}
                             {count > 0 && (
-                                <Chip
-                                    icon={<PeopleAltIcon />}
-                                    label={count}
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{ color: 'text.secondary' }}
-                                />
+                                <Tooltip title="Vidi ko je naručio">
+                                    <Chip
+                                        icon={<PeopleAltIcon />}
+                                        label={count}
+                                        size="small"
+                                        variant="outlined"
+                                        // klik na broj ne sme da uključi/isključi jelo – zato zaustavljamo događaj
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onShowPeople()
+                                        }}
+                                        aria-label={`Ko je naručio: ${meal.name}`}
+                                        // za prošle dane je cela kartica disabled (pointer-events: none),
+                                        // ali spisak naručilaca mora da ostane dostupan
+                                        sx={{ color: 'text.secondary', pointerEvents: 'auto', cursor: 'pointer' }}
+                                    />
+                                </Tooltip>
                             )}
                         </Stack>
 

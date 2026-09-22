@@ -4,6 +4,7 @@ import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlin
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Snackbar, Stack, Tooltip, Typography } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
@@ -36,6 +37,7 @@ export default function DugPage() {
     const [overpaidTotal, setOverpaidTotal] = useState(0)
     const [paidTotal, setPaidTotal] = useState(0)
     const [unpaidCount, setUnpaidCount] = useState(0)
+    const [credit, setCredit] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [copied, setCopied] = useState('')
@@ -51,6 +53,7 @@ export default function DugPage() {
             setOverpaidTotal(payments.overpaidTotal || 0)
             setPaidTotal(payments.paidTotal || 0)
             setUnpaidCount(payments.unpaidCount || 0)
+            setCredit(payments.credit || 0)
         } catch {
             setError('Greška pri učitavanju.')
         } finally {
@@ -76,7 +79,9 @@ export default function DugPage() {
     }
 
     const subsidyTotal = rows.reduce((a, r) => a + r.subsidy, 0)
-    const settled = unpaidTotal <= 0
+    // pretplata već pokriva deo duga, pa se uplaćuje samo ono što pretekne
+    const toPay = Math.max(0, unpaidTotal - credit)
+    const settled = toPay <= 0
     const accountNumber = formatAccountNumber(PAYMENT_RECIPIENT.account)
     const purpose = user ? `Obroci – ${fullName(user)}` : 'Obroci'
 
@@ -125,10 +130,15 @@ export default function DugPage() {
                                 lineHeight: 1.1,
                             }}
                         >
-                            {rsd(unpaidTotal)}
+                            {rsd(toPay)}
                         </Typography>
                         {unpaidCount > 0 && (
                             <Chip size="small" variant="outlined" label={`${unpaidCount} ${unpaidCount === 1 ? 'dan' : 'dana'}`} />
+                        )}
+                        {credit > 0 && unpaidTotal > 0 && (
+                            <Typography variant="caption" color="text.secondary">
+                                dug {rsd(unpaidTotal)} − pretplata {rsd(Math.min(credit, unpaidTotal))}
+                            </Typography>
                         )}
                     </Stack>
 
@@ -144,10 +154,21 @@ export default function DugPage() {
                             </Stack>
                             <Typography sx={{ fontWeight: 600, color: 'success.main' }}>{rsd(paidTotal)}</Typography>
                         </Stack>
+                        {credit > 0 && (
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                    <SavingsOutlinedIcon fontSize="small" sx={{ color: 'info.main' }} />
+                                    <Typography variant="body2" color="text.secondary">
+                                        Pretplata (tvoj kredit)
+                                    </Typography>
+                                </Stack>
+                                <Typography sx={{ fontWeight: 600, color: 'info.main' }}>{rsd(credit)}</Typography>
+                            </Stack>
+                        )}
                         {overpaidTotal > 0 && (
                             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography variant="body2" color="text.secondary" sx={{ pl: 3.5 }}>
-                                    Preplata (tvoj kredit)
+                                    Preplaćeni dani (ide u pretplatu)
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600, color: 'info.main' }}>
                                     {rsd(overpaidTotal)}
@@ -155,17 +176,18 @@ export default function DugPage() {
                             </Stack>
                         )}
                         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ pl: 3.5 }}>
-                                Pokrila firma (ukupno)
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                {rsd(subsidyTotal)}
-                            </Typography>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <AccountBalanceOutlinedIcon fontSize="small" sx={{ color: 'info.main' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                    Pokrila firma (ukupno)
+                                </Typography>
+                            </Stack>
+                            <Typography sx={{ fontWeight: 600, color: 'info.main' }}>{rsd(subsidyTotal)}</Typography>
                         </Stack>
                     </Stack>
 
                     <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
-                        {debtRoast(unpaidTotal, unpaidCount)}
+                        {debtRoast(toPay, toPay > 0 ? unpaidCount : 0)}
                     </Typography>
                 </CardContent>
             </Card>
@@ -184,22 +206,29 @@ export default function DugPage() {
                         <PaymentField label="Prima" value={PAYMENT_RECIPIENT.name} />
                         <PaymentField label="Broj računa" value={accountNumber} mono onCopy={() => copy('Broj računa', accountNumber)} />
                         <PaymentField label="Svrha uplate" value={purpose} onCopy={() => copy('Svrha uplate', purpose)} />
-                        {unpaidTotal > 0 && (
+                        {toPay > 0 && (
                             <PaymentField
-                                label="Iznos"
-                                value={rsd(unpaidTotal)}
+                                label={credit > 0 ? 'Iznos (posle pretplate)' : 'Iznos'}
+                                value={rsd(toPay)}
                                 highlight
-                                onCopy={() => copy('Iznos', String(unpaidTotal))}
+                                onCopy={() => copy('Iznos', String(toPay))}
                             />
                         )}
                     </Stack>
                 </CardContent>
             </Card>
 
+            {credit > 0 && (
+                <Alert severity="info" icon={<SavingsOutlinedIcon fontSize="inherit" />}>
+                    Imaš pretplatu od <b>{rsd(credit)}</b> – uplaćeno je više nego što je dug, pa taj novac sam plaća naredne obroke
+                    (najstariji dug prvi). Ako ti treba nazad, javi administratoru.
+                </Alert>
+            )}
+
             {overpaidTotal > 0 && (
                 <Alert severity="info">
-                    Za neki dan je plaćeno više nego što porudžbina sada košta (promenio si porudžbinu posle uplate). Razliku od{' '}
-                    {rsd(overpaidTotal)} dogovori sa administratorom – vraća se ili prebija sa sledećim dugom.
+                    Za neki dan je plaćeno više nego što porudžbina sada košta (promenio si porudžbinu posle uplate). Razlika od{' '}
+                    {rsd(overpaidTotal)} prelazi u pretplatu čim administrator ili sledeća izmena porudžbine osveži stanje.
                 </Alert>
             )}
 

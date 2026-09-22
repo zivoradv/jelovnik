@@ -64,7 +64,17 @@ interface Balance {
     overpaidTotal: number
     paidTotal: number
     unpaidCount: number
+    /** Neiskorišćena pretplata – novac koji čeka buduće obroke. */
+    credit: number
     balance: number
+}
+
+interface CreditEntry {
+    id: number
+    amount: number
+    reason: string
+    date: string | null
+    createdAt: string
 }
 
 const STATUS_LABEL: Record<DebtStatus, { label: string; color: 'success' | 'primary' | 'warning' | 'info' | 'default' }> = {
@@ -91,6 +101,12 @@ export default function DebtsAdmin() {
     const [msgTitle, setMsgTitle] = useState('')
     const [msgBody, setMsgBody] = useState('')
 
+    /** Dijalog „Evidentiraj uplatu” / „Isplati pretplatu” za jednog korisnika. */
+    const [payFor, setPayFor] = useState<Balance | null>(null)
+    const [payMode, setPayMode] = useState<'uplata' | 'isplata'>('uplata')
+    const [payAmount, setPayAmount] = useState('')
+    const [creditLog, setCreditLog] = useState<Record<number, CreditEntry[]>>({})
+
     const load = useCallback(async () => {
         setRefreshing(true)
         setError('')
@@ -113,11 +129,14 @@ export default function DebtsAdmin() {
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
         return balances
-            .filter((b) => (onlyOpen ? b.unpaidTotal > 0 || b.overpaidTotal > 0 : b.rows.length > 0))
+            .filter((b) => (onlyOpen ? b.unpaidTotal > 0 || b.overpaidTotal > 0 || b.credit > 0 : b.rows.length > 0 || b.credit > 0))
             .filter((b) => !q || fullName(b).toLowerCase().includes(q) || b.username.toLowerCase().includes(q))
             .sort(
                 (a, b) =>
-                    b.unpaidTotal - a.unpaidTotal || b.overpaidTotal - a.overpaidTotal || fullName(a).localeCompare(fullName(b), 'sr'),
+                    b.unpaidTotal - a.unpaidTotal ||
+                    b.overpaidTotal - a.overpaidTotal ||
+                    b.credit - a.credit ||
+                    fullName(a).localeCompare(fullName(b), 'sr'),
             )
     }, [balances, onlyOpen, search])
 
@@ -125,14 +144,16 @@ export default function DebtsAdmin() {
         let unpaid = 0
         let overpaid = 0
         let paid = 0
+        let credit = 0
         let debtors = 0
         for (const b of balances) {
             unpaid += b.unpaidTotal
             overpaid += b.overpaidTotal
             paid += b.paidTotal
+            credit += b.credit
             if (b.unpaidTotal > 0) debtors += 1
         }
-        return { unpaid, overpaid, paid, debtors }
+        return { unpaid, overpaid, paid, credit, debtors }
     }, [balances])
 
     async function post(body: unknown): Promise<boolean> {
@@ -165,19 +186,88 @@ export default function DebtsAdmin() {
                 confirmText: `Evidentiraj ${rsd(r.remaining)}`,
             })
             if (!ok) return
-        } else if (r.status === 'preplaceno') {
-            const ok = await confirm({
-                title: 'Izravnati preplatu?',
-                message: `Plaćeno je ${rsd(r.paid)}, a dan sada košta ${rsd(r.total)}. Potvrdom se uplata za taj dan upisuje kao ${rsd(r.total)} – razliku od ${rsd(-r.remaining)} vrati korisniku ili je prebij ručno.`,
-                confirmText: 'Izravnaj',
-            })
-            if (!ok) return
         }
         const key = `${b.userId}|${r.date}`
         setBusy(key)
         setError('')
         try {
             if (await post({ userId: b.userId, date: r.date, paid })) await load()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    const loadCreditLog = useCallback(async (userId: number) => {
+        try {
+            const res = await fetch(`/api/admin/payments?userId=${userId}`)
+            const data = await res.json()
+            setCreditLog((prev) => ({ ...prev, [userId]: data.log || [] }))
+        } catch {}
+    }, [])
+
+    function toggleExpanded(b: Balance) {
+        const open = expanded === b.userId
+        setExpanded(open ? null : b.userId)
+        if (!open && b.credit !== 0 && !creditLog[b.userId]) loadCreditLog(b.userId)
+    }
+
+    function openPayDialog(b: Balance, mode: 'uplata' | 'isplata') {
+        setPayFor(b)
+        setPayMode(mode)
+        setPayAmount(String(mode === 'uplata' ? b.unpaidTotal || '' : b.credit))
+    }
+
+    /** Uplata proizvoljnog iznosa: pokriva najstarije dugove, ostatak ostaje kao pretplata. */
+    async function submitPayment() {
+        if (!payFor) return
+        const amount = Number(payAmount)
+        const b = payFor
+        setBusy(`pay|${b.userId}`)
+        setError('')
+        try {
+            const res = await fetch('/api/admin/payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: b.userId, action: payMode === 'uplata' ? 'uplata' : 'pretplata-isplata', amount }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju.')
+            setPayFor(null)
+            await load()
+            await loadCreditLog(b.userId)
+            setToast(
+                payMode === 'uplata'
+                    ? `${fullName(b)}: uplata ${rsd(amount)} evidentirana${data.left > 0 ? `, pretplata ${rsd(data.left)}` : ''}.`
+                    : `${fullName(b)}: isplaćena pretplata ${rsd(amount)}.`,
+            )
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Greška pri čuvanju.')
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    /**
+     * Ručno prebijanje: preplaćeni dani se spuštaju na tačnu cenu, a višak zajedno sa
+     * postojećom pretplatom pokriva otvorene dugove (inače se to dešava samo pri izmeni porudžbine).
+     */
+    async function applyCreditToDebt(b: Balance, ask = true) {
+        if (ask) {
+            const ok = await confirm({
+                title: 'Iskoristiti pretplatu za dug?',
+                message: `${fullName(b)}: pretplata ${rsd(b.credit)}, dug ${rsd(b.unpaidTotal)}. Pretplata se troši na najstarije dane.`,
+                confirmText: 'Prebij',
+            })
+            if (!ok) return
+        }
+        setBusy(`credit|${b.userId}`)
+        setError('')
+        try {
+            if (await post({ userId: b.userId, action: 'pretplata-primeni' })) {
+                await load()
+                await loadCreditLog(b.userId)
+                setToast(`${fullName(b)}: stanje pretplate ažurirano.`)
+            }
         } finally {
             setBusy(null)
         }
@@ -271,7 +361,7 @@ export default function DebtsAdmin() {
             <Box
                 sx={{
                     display: 'grid',
-                    gridTemplateColumns: { xs: '1fr 1fr', sm: totals.overpaid > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)' },
+                    gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
                     gap: 1.5,
                     mb: 2.5,
                 }}
@@ -279,14 +369,13 @@ export default function DebtsAdmin() {
                 <StatTile label="Ukupno neplaćeno" value={rsd(totals.unpaid)} icon={<PaymentsIcon fontSize="small" />} highlight />
                 <StatTile label="Dužnika" value={String(totals.debtors)} icon={<NotificationsActiveIcon fontSize="small" />} />
                 <StatTile label="Ukupno naplaćeno" value={rsd(totals.paid)} icon={<CheckCircleIcon fontSize="small" />} />
-                {totals.overpaid > 0 && (
-                    <StatTile label="Preplate (vratiti)" value={rsd(totals.overpaid)} icon={<SavingsOutlinedIcon fontSize="small" />} />
-                )}
+                <StatTile label="Pretplata (kod tebe)" value={rsd(totals.credit)} icon={<SavingsOutlinedIcon fontSize="small" />} />
             </Box>
 
             <Alert severity="info" sx={{ mb: 2.5 }}>
-                Cena svakog dana je zamrznuta u trenutku naručivanja. Uplata se upisuje sa tačnim iznosom – ako korisnik posle uplate
-                promeni porudžbinu, dan postaje <b>delimično</b> plaćen ili <b>preplaćen</b> i ti i on dobijate obaveštenje.
+                Cena svakog dana je zamrznuta u trenutku naručivanja. Kad neko plati <b>više nego što duguje</b>, višak ostaje kao{' '}
+                <b>pretplata</b> i sam pokriva naredne obroke – najstariji dug prvi. Isto važi i kad korisnik smanji već plaćenu porudžbinu:
+                razlika ide u pretplatu, a ne u „preplaćen” dan.
             </Alert>
 
             <Card sx={{ p: { xs: 2, sm: 2.5 }, mb: 2.5 }}>
@@ -346,7 +435,7 @@ export default function DebtsAdmin() {
                                     <Stack
                                         direction="row"
                                         spacing={{ xs: 1, sm: 1.5 }}
-                                        onClick={() => setExpanded(open ? null : b.userId)}
+                                        onClick={() => toggleExpanded(b)}
                                         sx={{ alignItems: 'center', cursor: 'pointer' }}
                                     >
                                         <Avatar
@@ -362,13 +451,25 @@ export default function DebtsAdmin() {
                                             {initials(b)}
                                         </Avatar>
                                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                            <Typography sx={{ fontWeight: 600 }} noWrap>
-                                                {fullName(b)}
-                                            </Typography>
+                                            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', minWidth: 0 }}>
+                                                <Typography sx={{ fontWeight: 600 }} noWrap>
+                                                    {fullName(b)}
+                                                </Typography>
+                                                {b.credit > 0 && (
+                                                    <Chip
+                                                        size="small"
+                                                        color="info"
+                                                        variant="outlined"
+                                                        icon={<SavingsOutlinedIcon />}
+                                                        label={`pretplata ${rsd(b.credit)}`}
+                                                        sx={{ flexShrink: 0 }}
+                                                    />
+                                                )}
+                                            </Stack>
                                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                                 @{b.username} · {b.rows.length} {b.rows.length === 1 ? 'dan' : 'dana'}
                                                 {b.paidTotal > 0 && ` · plaćeno ${rsd(b.paidTotal)}`}
-                                                {b.overpaidTotal > 0 && ` · preplata ${rsd(b.overpaidTotal)}`}
+                                                {b.overpaidTotal > 0 && ` · preplaćeni dani ${rsd(b.overpaidTotal)}`}
                                             </Typography>
                                         </Box>
                                         <Stack sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
@@ -387,6 +488,21 @@ export default function DebtsAdmin() {
                                                 </Typography>
                                             )}
                                         </Stack>
+                                        <Tooltip title="Evidentiraj uplatu">
+                                            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+                                                <IconButton
+                                                    aria-label="Evidentiraj uplatu"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        openPayDialog(b, 'uplata')
+                                                    }}
+                                                    disabled={busy === `pay|${b.userId}`}
+                                                    color="primary"
+                                                >
+                                                    <PaymentsIcon />
+                                                </IconButton>
+                                            </Box>
+                                        </Tooltip>
                                         {owes && (
                                             <Tooltip title="Označi sve kao plaćeno">
                                                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
@@ -500,16 +616,30 @@ export default function DebtsAdmin() {
                                                                     useFlexGap
                                                                     sx={{ mt: 0.75, flexWrap: 'wrap' }}
                                                                 >
-                                                                    <Button
-                                                                        size="small"
-                                                                        variant="outlined"
-                                                                        color="success"
-                                                                        disabled={busy === key}
-                                                                        onClick={() => setDay(b, r, true)}
-                                                                        sx={{ py: 0, minHeight: 26 }}
-                                                                    >
-                                                                        Izravnaj na {rsd(r.total)}
-                                                                    </Button>
+                                                                    {r.status === 'preplaceno' ? (
+                                                                        <Button
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            color="info"
+                                                                            startIcon={<SavingsOutlinedIcon />}
+                                                                            disabled={busy === `credit|${b.userId}`}
+                                                                            onClick={() => applyCreditToDebt(b, false)}
+                                                                            sx={{ py: 0, minHeight: 26 }}
+                                                                        >
+                                                                            Višak {rsd(-r.remaining)} u pretplatu
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <Button
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            color="success"
+                                                                            disabled={busy === key}
+                                                                            onClick={() => setDay(b, r, true)}
+                                                                            sx={{ py: 0, minHeight: 26 }}
+                                                                        >
+                                                                            Izravnaj na {rsd(r.total)}
+                                                                        </Button>
+                                                                    )}
                                                                     <Button
                                                                         size="small"
                                                                         variant="text"
@@ -527,6 +657,104 @@ export default function DebtsAdmin() {
                                                 )
                                             })}
                                         </Stack>
+                                        {b.credit > 0 && (
+                                            <Box
+                                                sx={(t) => ({
+                                                    mt: 1.5,
+                                                    p: 1.5,
+                                                    borderRadius: 2,
+                                                    border: '1.5px solid',
+                                                    borderColor: t.vars.palette.info.light,
+                                                    bgcolor: t.vars.palette.action.hover,
+                                                })}
+                                            >
+                                                <Stack
+                                                    direction={{ xs: 'column', sm: 'row' }}
+                                                    spacing={1}
+                                                    sx={{ alignItems: { sm: 'center' } }}
+                                                >
+                                                    <Box sx={{ flexGrow: 1 }}>
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                                                            <SavingsOutlinedIcon fontSize="small" color="info" />
+                                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                                Pretplata: {rsd(b.credit)}
+                                                            </Typography>
+                                                        </Stack>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Sama pokriva naredne obroke. Možeš je odmah prebiti sa dugom ili isplatiti
+                                                            korisniku.
+                                                        </Typography>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                                                        {owes && (
+                                                            <Button
+                                                                size="small"
+                                                                variant="contained"
+                                                                color="info"
+                                                                disabled={busy === `credit|${b.userId}`}
+                                                                onClick={() => applyCreditToDebt(b)}
+                                                            >
+                                                                Prebij sa dugom
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="inherit"
+                                                            disabled={busy === `pay|${b.userId}`}
+                                                            onClick={() => openPayDialog(b, 'isplata')}
+                                                        >
+                                                            Isplati
+                                                        </Button>
+                                                    </Stack>
+                                                </Stack>
+                                                {creditLog[b.userId] && creditLog[b.userId].length > 0 && (
+                                                    <>
+                                                        <Divider sx={{ my: 1 }} />
+                                                        <Stack spacing={0.25}>
+                                                            {creditLog[b.userId].slice(0, 8).map((e) => (
+                                                                <Stack
+                                                                    key={e.id}
+                                                                    direction="row"
+                                                                    spacing={1}
+                                                                    sx={{ alignItems: 'baseline' }}
+                                                                >
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        sx={{
+                                                                            fontWeight: 700,
+                                                                            minWidth: 88,
+                                                                            color: e.amount > 0 ? 'success.main' : 'text.secondary',
+                                                                        }}
+                                                                    >
+                                                                        {e.amount > 0 ? '+' : '−'}
+                                                                        {rsd(Math.abs(e.amount))}
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        color="text.secondary"
+                                                                        sx={{ flexGrow: 1, minWidth: 0 }}
+                                                                    >
+                                                                        {e.reason}
+                                                                        {e.date && ` · ${formatDateLong(fromISODate(e.date))}`}
+                                                                    </Typography>
+                                                                </Stack>
+                                                            ))}
+                                                        </Stack>
+                                                    </>
+                                                )}
+                                            </Box>
+                                        )}
+                                        <Button
+                                            fullWidth
+                                            variant="contained"
+                                            startIcon={<PaymentsIcon />}
+                                            onClick={() => openPayDialog(b, 'uplata')}
+                                            disabled={busy === `pay|${b.userId}`}
+                                            sx={{ mt: 1.5, display: { xs: 'inline-flex', sm: 'none' } }}
+                                        >
+                                            Evidentiraj uplatu
+                                        </Button>
                                         {owes && (
                                             <Button
                                                 fullWidth
@@ -535,7 +763,7 @@ export default function DebtsAdmin() {
                                                 startIcon={<DoneAllIcon />}
                                                 onClick={() => payAll(b)}
                                                 disabled={busy === `all|${b.userId}`}
-                                                sx={{ mt: 1.5, display: { xs: 'inline-flex', sm: 'none' } }}
+                                                sx={{ mt: 1, display: { xs: 'inline-flex', sm: 'none' } }}
                                             >
                                                 Označi sve kao plaćeno ({rsd(b.unpaidTotal)})
                                             </Button>
@@ -547,6 +775,16 @@ export default function DebtsAdmin() {
                     })}
                 </Stack>
             )}
+
+            <PayDialog
+                balance={payFor}
+                mode={payMode}
+                amount={payAmount}
+                busy={!!payFor && busy === `pay|${payFor.userId}`}
+                onAmount={setPayAmount}
+                onClose={() => setPayFor(null)}
+                onSubmit={submitPayment}
+            />
 
             <Dialog open={msgOpen} onClose={() => setMsgOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Poruka svim korisnicima</DialogTitle>
@@ -599,6 +837,136 @@ export default function DebtsAdmin() {
                 </Alert>
             </Snackbar>
         </Box>
+    )
+}
+
+/**
+ * Uplata proizvoljnog iznosa (i isplata pretplate). Odmah pokazuje kako će se novac rasporediti:
+ * koliko pokriva dug, a koliko ostaje kao pretplata za naredne obroke.
+ */
+function PayDialog({
+    balance,
+    mode,
+    amount,
+    busy,
+    onAmount,
+    onClose,
+    onSubmit,
+}: {
+    balance: Balance | null
+    mode: 'uplata' | 'isplata'
+    amount: string
+    busy: boolean
+    onAmount: (v: string) => void
+    onClose: () => void
+    onSubmit: () => void
+}) {
+    const b = balance
+    const value = Math.max(0, Math.round(Number(amount) || 0))
+    const isPayment = mode === 'uplata'
+    const debt = b?.unpaidTotal ?? 0
+    const credit = b?.credit ?? 0
+    // uplata prvo ulazi u pretplatu, pa se odatle skida dug – zato i preplaćeni dani ulaze u račun
+    const pool = isPayment ? value + credit + (b?.overpaidTotal ?? 0) : 0
+    const covers = Math.min(pool, debt)
+    const leftover = pool - covers
+    const tooMuch = !isPayment && value > credit
+    const invalid = value <= 0 || tooMuch
+
+    return (
+        <Dialog open={!!b} onClose={onClose} fullWidth maxWidth="xs">
+            <DialogTitle>
+                {isPayment ? 'Evidentiraj uplatu' : 'Isplati pretplatu'}
+                {b && (
+                    <Typography variant="body2" color="text.secondary">
+                        {fullName(b)}
+                    </Typography>
+                )}
+            </DialogTitle>
+            <Divider />
+            <DialogContent>
+                <Stack spacing={2} sx={{ mt: 1 }}>
+                    <TextField
+                        label="Iznos (RSD)"
+                        type="number"
+                        value={amount}
+                        onChange={(e) => onAmount(e.target.value)}
+                        autoFocus
+                        fullWidth
+                        error={tooMuch}
+                        helperText={tooMuch ? `Pretplata je samo ${rsd(credit)}.` : undefined}
+                        slotProps={{ htmlInput: { min: 1, step: 10, inputMode: 'numeric' } }}
+                    />
+
+                    {isPayment && (
+                        <>
+                            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                                {debt > 0 && <Chip label={`Ceo dug ${rsd(debt)}`} size="small" onClick={() => onAmount(String(debt))} />}
+                                {[1000, 2000, 5000].map((v) => (
+                                    <Chip key={v} label={rsd(v)} size="small" variant="outlined" onClick={() => onAmount(String(v))} />
+                                ))}
+                            </Stack>
+
+                            <Box
+                                sx={(t) => ({
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    bgcolor: t.vars.palette.action.hover,
+                                })}
+                            >
+                                <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Pokriva dug
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                                        {rsd(covers)}
+                                    </Typography>
+                                </Stack>
+                                <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Ostaje kao pretplata
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: leftover > 0 ? 'info.main' : undefined }}>
+                                        {rsd(leftover)}
+                                    </Typography>
+                                </Stack>
+                                {debt > covers && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                                        Posle ove uplate ostaje dug {rsd(debt - covers)}.
+                                    </Typography>
+                                )}
+                                {credit > 0 && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                                        Uračunata je i ranija pretplata od {rsd(credit)}.
+                                    </Typography>
+                                )}
+                            </Box>
+                        </>
+                    )}
+
+                    {!isPayment && (
+                        <Typography variant="body2" color="text.secondary">
+                            Pretplata je {rsd(credit)}. Unesi koliko si stvarno vratio korisniku – za toliko se stanje umanjuje.
+                        </Typography>
+                    )}
+                </Stack>
+            </DialogContent>
+            <Divider />
+            <DialogActions sx={{ px: 3, py: 2 }}>
+                <Button onClick={onClose} color="inherit">
+                    Otkaži
+                </Button>
+                <Button
+                    variant="contained"
+                    color={isPayment ? 'primary' : 'inherit'}
+                    startIcon={isPayment ? <PaymentsIcon /> : <SavingsOutlinedIcon />}
+                    onClick={onSubmit}
+                    disabled={busy || invalid}
+                >
+                    {isPayment ? `Evidentiraj ${rsd(value)}` : `Isplati ${rsd(value)}`}
+                </Button>
+            </DialogActions>
+        </Dialog>
     )
 }
 

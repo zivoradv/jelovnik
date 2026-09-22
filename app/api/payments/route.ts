@@ -14,6 +14,7 @@ export async function GET() {
         overpaidTotal: balance?.overpaidTotal ?? 0,
         paidTotal: balance?.paidTotal ?? 0,
         unpaidCount: balance?.unpaidCount ?? 0,
+        credit: balance?.credit ?? 0,
         balance: balance?.balance ?? 0,
     })
 }

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, DATE_RE, errorMessage, requireUser } from '@/lib/api'
-import { getCountsForDate, getUserOrdersForDate, type OrderItemInput, saveUserOrders } from '@/services/orders.service'
+import { getCountsForDate, getOrderersForDate, getUserOrdersForDate, type OrderItemInput, saveUserOrders } from '@/services/orders.service'
 
 export async function GET(req: NextRequest) {
     const auth = await requireUser()
@@ -9,8 +9,12 @@ export async function GET(req: NextRequest) {
     const date = req.nextUrl.searchParams.get('date')
     if (!date || !DATE_RE.test(date)) return badRequest('Nedostaje parametar "date" (YYYY-MM-DD).')
 
-    const [mine, counts] = await Promise.all([getUserOrdersForDate(auth.user.sub, date), getCountsForDate(date)])
-    return NextResponse.json({ mine, counts })
+    const [mine, counts, who] = await Promise.all([
+        getUserOrdersForDate(auth.user.sub, date),
+        getCountsForDate(date),
+        getOrderersForDate(date),
+    ])
+    return NextResponse.json({ mine, counts, who })
 }
 
 /** { date, items: [{ mealId, quantity, note?, withSoup? }] } – zamenjuje celu porudžbinu za taj dan. */

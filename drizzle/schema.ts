@@ -161,6 +161,28 @@ export const beerRsvps = pgTable(
     (t) => [uniqueIndex('beer_rsvps_plan_user_uidx').on(t.planId, t.userId)],
 )
 
+/**
+ * Pretplata (kredit) korisnika – knjiga stavki.
+ * Pozitivan iznos je uplata koja još nije potrošena, negativan je potrošnja
+ * (prebijanje duga za neki dan) ili isplata novca nazad korisniku.
+ * Trenutno stanje pretplate je zbir svih stavki.
+ */
+export const credits = pgTable(
+    'credits',
+    {
+        id: serial('id').primaryKey(),
+        userId: integer('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        amount: integer('amount').notNull(),
+        reason: text('reason').notNull().default(''),
+        /** Dan na koji je pretplata utrošena (kod potrošnje), inače prazno. */
+        date: date('date'),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+    },
+    (t) => [index('credits_user_idx').on(t.userId)],
+)
+
 /** Globalna podešavanja (deo koji pokriva firma, cena čorbe...). */
 export const settings = pgTable('settings', {
     key: text('key').primaryKey(),
@@ -207,6 +229,10 @@ export const beerRsvpsRelations = relations(beerRsvps, ({ one }) => ({
     user: one(users, { fields: [beerRsvps.userId], references: [users.id] }),
 }))
 
+export const creditsRelations = relations(credits, ({ one }) => ({
+    user: one(users, { fields: [credits.userId], references: [users.id] }),
+}))
+
 export const notificationsRelations = relations(notifications, ({ one }) => ({
     user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }))
@@ -222,6 +248,8 @@ export type Order = typeof orders.$inferSelect
 export type NewOrder = typeof orders.$inferInsert
 export type Payment = typeof payments.$inferSelect
 export type NewPayment = typeof payments.$inferInsert
+export type Credit = typeof credits.$inferSelect
+export type NewCredit = typeof credits.$inferInsert
 export type Notification = typeof notifications.$inferSelect
 export type NewNotification = typeof notifications.$inferInsert
 export type BeerPlan = typeof beerPlans.$inferSelect

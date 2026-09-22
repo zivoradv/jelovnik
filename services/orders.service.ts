@@ -1,5 +1,5 @@
-import { and, asc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
-import { db, meals, type Order, orders, payments, users } from '@/drizzle'
+import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
+import { type Credit, credits, db, meals, type Order, orders, payments, users } from '@/drizzle'
 import { isWorkday } from '@/lib/constants'
 import { formatDateLong, fromISODate, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, isOrderingOpen } from '@/lib/deadline'
@@ -152,9 +152,20 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
     return saved
 }
 
+async function userLabel(userId: number): Promise<string> {
+    const [u] = await db
+        .select({ firstName: users.firstName, lastName: users.lastName, username: users.username })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+    return u ? `${u.firstName} ${u.lastName}`.trim() || u.username : `korisnik #${userId}`
+}
+
 /**
- * Ako je dan već (delimično) plaćen, a korisnik je promenio porudžbinu tako da se cena razlikuje od uplate,
- * obaveštavamo i korisnika i administratore – da ne ostane „plaćeno” sa pogrešnim iznosom.
+ * Posle svake izmene porudžbine dovodimo novac u red:
+ *  – ako je za taj dan uplaćeno više nego što sada košta, višak ide u pretplatu (ne ostaje „preplaćen” dan),
+ *  – ako korisnik ima pretplatu, ona odmah pokriva dugove (najstariji prvi) – zato i postoji.
+ * Korisnik i administratori dobijaju obaveštenje o svakoj takvoj promeni.
  */
 async function afterOrderChange(userId: number, dateStr: string, newTotal: number): Promise<void> {
     const [payment] = await db
@@ -162,34 +173,47 @@ async function afterOrderChange(userId: number, dateStr: string, newTotal: numbe
         .from(payments)
         .where(and(eq(payments.userId, userId), eq(payments.date, dateStr)))
         .limit(1)
-    if (!payment || payment.amount <= 0 || payment.amount === newTotal) return
-
-    const diff = newTotal - payment.amount
+    const paid = payment?.amount ?? 0
     const dateLabel = formatDateLong(fromISODate(dateStr))
-    const [u] = await db
-        .select({ firstName: users.firstName, lastName: users.lastName, username: users.username })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1)
-    const who = u ? `${u.firstName} ${u.lastName}`.trim() || u.username : `korisnik #${userId}`
+
+    const swept = paid > newTotal ? await sweepDay(userId, dateStr, newTotal, paid) : 0
+    const creditBefore = await getCredit(userId)
+    const used = creditBefore > 0 ? await applyCreditToDebts(userId) : { applied: 0, days: 0, left: creditBefore }
+    const stillOwes = paid > 0 && newTotal > paid ? newTotal - paid - used.applied : 0
+
+    if (swept === 0 && used.applied === 0 && stillOwes <= 0) return
+
+    const who = await userLabel(userId)
+    const userLines: string[] = []
+    const adminLines: string[] = []
+
+    if (swept > 0) {
+        userLines.push(
+            `Za ${dateLabel} je uplaćeno ${rsd(paid)}, a dan sada košta ${rsd(newTotal)} – ${rsd(swept)} je prebačeno u pretplatu.`,
+        )
+        adminLines.push(`${dateLabel}: uplaćeno ${rsd(paid)}, nova cena ${rsd(newTotal)} – ${rsd(swept)} prebačeno u pretplatu.`)
+    }
+    if (used.applied > 0) {
+        const d = used.days === 1 ? 'dan' : 'dana'
+        userLines.push(`Iz pretplate je plaćeno ${rsd(used.applied)} (${used.days} ${d}). Ostatak pretplate: ${rsd(used.left)}.`)
+        adminLines.push(`Pretplata je pokrila ${rsd(used.applied)} duga (${used.days} ${d}); ostatak ${rsd(used.left)}.`)
+    }
+    if (stillOwes > 0) {
+        userLines.push(`Za ${dateLabel} ostaje doplata od ${rsd(stillOwes)}.`)
+        adminLines.push(`${dateLabel}: korisnik duguje još ${rsd(stillOwes)}.`)
+    }
 
     await Promise.all([
         notifyUsers([userId], {
-            type: 'dug',
-            title: `Promenjena porudžbina za već plaćen dan (${dateLabel})`,
-            body:
-                diff > 0
-                    ? `Plaćeno je ${rsd(payment.amount)}, a nova cena je ${rsd(newTotal)}. Razlika od ${rsd(diff)} je dodata na dug.`
-                    : `Plaćeno je ${rsd(payment.amount)}, a nova cena je ${rsd(newTotal)}. Preplata od ${rsd(-diff)} se vodi kao tvoj kredit.`,
+            type: swept > 0 || used.applied > 0 ? 'uplata' : 'dug',
+            title: stillOwes > 0 ? `Promenjena porudžbina za plaćen dan (${dateLabel})` : `Stanje ažurirano (${dateLabel})`,
+            body: userLines.join(' '),
             link: '/dug',
         }),
         notifyAdmins({
             type: 'dug',
             title: `${who}: izmena porudžbine za plaćen dan ${dateLabel}`,
-            body:
-                diff > 0
-                    ? `Uplaćeno ${rsd(payment.amount)}, nova cena ${rsd(newTotal)} – korisnik duguje još ${rsd(diff)}.`
-                    : `Uplaćeno ${rsd(payment.amount)}, nova cena ${rsd(newTotal)} – preplata ${rsd(-diff)}.`,
+            body: adminLines.join(' '),
             link: '/admin?tab=dugovi',
         }),
     ])
@@ -206,6 +230,37 @@ export async function getCountsForDate(dateStr: string): Promise<{ mealId: numbe
         .groupBy(orders.mealId)
 
     return rows.map((r) => ({ mealId: r.mealId, count: r.count }))
+}
+
+export interface MealOrderer {
+    mealId: number
+    userId: number
+    username: string
+    firstName: string
+    lastName: string
+    quantity: number
+    withSoup: boolean
+}
+
+/**
+ * Ko je šta naručio za dati dan – bez napomena, jer su one dogovor sa kuvaricom.
+ * Broj porcija je ionako javan (prikazuje se uz svako jelo), ovo mu samo daje imena.
+ */
+export async function getOrderersForDate(dateStr: string): Promise<MealOrderer[]> {
+    return db
+        .select({
+            mealId: orders.mealId,
+            userId: orders.userId,
+            username: users.username,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            quantity: orders.quantity,
+            withSoup: orders.withSoup,
+        })
+        .from(orders)
+        .innerJoin(users, eq(orders.userId, users.id))
+        .where(eq(orders.date, dateStr))
+        .orderBy(asc(users.firstName), asc(users.lastName), asc(users.username))
 }
 
 export interface OrderDetailRow {
@@ -346,13 +401,15 @@ export interface UserBalance {
     rows: DebtRow[]
     /** Zbir svih pozitivnih ostataka (koliko duguje). */
     unpaidTotal: number
-    /** Zbir svih preplata (koliko mu se duguje / kredit). */
+    /** Zbir preplata po danima (uplata veća od cene tog dana) – prebacuje se u pretplatu. */
     overpaidTotal: number
     /** Zbir svih evidentiranih uplata. */
     paidTotal: number
     /** Broj dana sa dugom. */
     unpaidCount: number
-    /** unpaidTotal − overpaidTotal: neto stanje. */
+    /** Neiskorišćena pretplata (kredit) – novac koji čeka buduće obroke. */
+    credit: number
+    /** unpaidTotal − credit − overpaidTotal: neto stanje (>0 duguje, <0 ima višak kod nas). */
     balance: number
 }
 
@@ -367,6 +424,8 @@ function statusOf(total: number, paid: number): DebtStatus {
 async function computeBalances(userId: number | null): Promise<Map<number, UserBalance>> {
     const orderWhere = userId === null ? undefined : eq(orders.userId, userId)
     const paymentWhere = userId === null ? undefined : eq(payments.userId, userId)
+
+    const creditByUser = await creditTotals(userId)
 
     const [orderRows, paymentRows, userRows] = await Promise.all([
         db
@@ -449,6 +508,7 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
                 overpaidTotal += -r.remaining
             }
         }
+        const credit = creditByUser.get(u.id) ?? 0
         result.set(u.id, {
             userId: u.id,
             username: u.username,
@@ -459,7 +519,8 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
             overpaidTotal,
             paidTotal,
             unpaidCount,
-            balance: unpaidTotal - overpaidTotal,
+            credit,
+            balance: unpaidTotal - overpaidTotal - credit,
         })
     }
     return result
@@ -475,6 +536,139 @@ export async function getAllBalances(): Promise<UserBalance[]> {
     return [...map.values()]
 }
 
+// ───────────────────────────── pretplata (kredit) ─────────────────────────────
+
+/** Trenutno stanje pretplate po korisniku (zbir stavki iz `credits`). */
+async function creditTotals(userId: number | null): Promise<Map<number, number>> {
+    const rows = await db
+        .select({ userId: credits.userId, total: sql<number>`COALESCE(SUM(${credits.amount}), 0)::int` })
+        .from(credits)
+        .where(userId === null ? undefined : eq(credits.userId, userId))
+        .groupBy(credits.userId)
+    return new Map(rows.map((r) => [r.userId, r.total]))
+}
+
+export async function getCredit(userId: number): Promise<number> {
+    const map = await creditTotals(userId)
+    return map.get(userId) ?? 0
+}
+
+/** Poslednje stavke pretplate – „odakle je došlo i gde je otišlo”. */
+export async function getCreditLog(userId: number, limit = 40): Promise<Credit[]> {
+    return db.select().from(credits).where(eq(credits.userId, userId)).orderBy(desc(credits.createdAt), desc(credits.id)).limit(limit)
+}
+
+async function addCredit(userId: number, amount: number, reason: string, dateStr?: string | null): Promise<void> {
+    if (amount === 0) return
+    await db.insert(credits).values({ userId, amount: Math.round(amount), reason, date: dateStr ?? null })
+}
+
+async function upsertPayment(userId: number, dateStr: string, amount: number): Promise<void> {
+    if (amount <= 0) {
+        await db.delete(payments).where(and(eq(payments.userId, userId), eq(payments.date, dateStr)))
+        return
+    }
+    await db
+        .insert(payments)
+        .values({ userId, date: dateStr, amount, paidAt: new Date() })
+        .onConflictDoUpdate({ target: [payments.userId, payments.date], set: { amount, paidAt: new Date() } })
+}
+
+/**
+ * Dan za koji je uplaćeno više nego što (sada) košta: uplata se spušta na tačnu cenu dana,
+ * a višak se prebacuje u pretplatu. Vraća prebačeni iznos.
+ */
+async function sweepDay(userId: number, dateStr: string, total: number, paid: number): Promise<number> {
+    const excess = paid - total
+    if (excess <= 0) return 0
+    await upsertPayment(userId, dateStr, Math.max(0, total))
+    await addCredit(userId, excess, 'preplata za dan', dateStr)
+    return excess
+}
+
+/** Prebacuje sve preplaćene dane korisnika u pretplatu. Vraća ukupno prebačen iznos. */
+export async function sweepOverpaidToCredit(userId: number): Promise<number> {
+    const balance = await getUserBalance(userId)
+    if (!balance) return 0
+    let moved = 0
+    for (const r of balance.rows) {
+        if (r.remaining < 0) moved += await sweepDay(userId, r.date, r.total, r.paid)
+    }
+    return moved
+}
+
+export interface CreditApplied {
+    /** Koliko je pretplate potrošeno na dugove. */
+    applied: number
+    /** Na koliko dana. */
+    days: number
+    /** Koliko pretplate ostaje posle prebijanja. */
+    left: number
+}
+
+/**
+ * Troši pretplatu na neplaćene dane, počev od najstarijeg.
+ * Ako pretplata ne pokrije ceo dan, taj dan ostaje „delimično” plaćen.
+ */
+export async function applyCreditToDebts(userId: number): Promise<CreditApplied> {
+    let credit = await getCredit(userId)
+    if (credit <= 0) return { applied: 0, days: 0, left: Math.min(0, credit) }
+
+    const balance = await getUserBalance(userId)
+    if (!balance) return { applied: 0, days: 0, left: credit }
+
+    const owed = balance.rows.filter((r) => r.remaining > 0).sort((a, b) => (a.date < b.date ? -1 : 1))
+    let applied = 0
+    let days = 0
+    for (const r of owed) {
+        if (credit <= 0) break
+        const take = Math.min(credit, r.remaining)
+        await upsertPayment(userId, r.date, r.paid + take)
+        await addCredit(userId, -take, 'iskorišćeno za dug', r.date)
+        credit -= take
+        applied += take
+        days += 1
+    }
+    return { applied, days, left: credit }
+}
+
+export interface PaymentResult {
+    /** Koliko je novca primljeno. */
+    amount: number
+    /** Koliko je od toga otišlo na dugove. */
+    applied: number
+    /** Na koliko dana. */
+    days: number
+    /** Koliko ostaje kao pretplata za buduće obroke. */
+    left: number
+    /** Koliko je usput prebačeno iz ranije preplaćenih dana. */
+    swept: number
+}
+
+/**
+ * Evidentira uplatu proizvoljnog iznosa: novac prvo ide u pretplatu, pa se odatle
+ * prebija sa najstarijim dugovima. Ono što pretekne ostaje kao pretplata.
+ */
+export async function recordPayment(userId: number, amount: number): Promise<PaymentResult> {
+    const amt = Math.round(Number(amount))
+    if (!Number.isFinite(amt) || amt <= 0) throw new Error('Iznos uplate mora biti veći od nule.')
+
+    const swept = await sweepOverpaidToCredit(userId)
+    await addCredit(userId, amt, 'uplata')
+    const res = await applyCreditToDebts(userId)
+    return { amount: amt, applied: res.applied, days: res.days, left: res.left, swept }
+}
+
+/** Isplata pretplate nazad korisniku (gotovina/prenos) – skida se sa stanja. */
+export async function refundCredit(userId: number, amount: number): Promise<number> {
+    const amt = Math.round(Number(amount))
+    if (!Number.isFinite(amt) || amt <= 0) throw new Error('Iznos isplate mora biti veći od nule.')
+    const credit = await getCredit(userId)
+    if (amt > credit) throw new Error(`Pretplata je ${rsd(credit)} – ne možeš isplatiti ${rsd(amt)}.`)
+    await addCredit(userId, -amt, 'isplaćeno korisniku')
+    return amt
+}
+
 /** Trenutna cena dana (ono što korisnik plaća) iz zamrznutih stavki. */
 async function dayTotal(userId: number, dateStr: string): Promise<number> {
     const rows = await db
@@ -484,23 +678,29 @@ async function dayTotal(userId: number, dateStr: string): Promise<number> {
     return dayCostFromSnapshot(rows).toPay
 }
 
+/** Koliko je pretplate (neto) utrošeno baš na taj dan – da bi poništavanje dana vratilo novac. */
+async function creditUsedForDay(userId: number, dateStr: string): Promise<number> {
+    const [row] = await db
+        .select({ total: sql<number>`COALESCE(SUM(${credits.amount}), 0)::int` })
+        .from(credits)
+        .where(and(eq(credits.userId, userId), eq(credits.date, dateStr)))
+    return Math.max(0, -(row?.total ?? 0))
+}
+
 /**
  * Evidentira uplatu za jedan dan: `paid = true` upisuje tačno trenutnu cenu dana kao plaćeno,
- * `paid = false` vraća dan na neplaćeno. Vraća upisani iznos.
+ * `paid = false` vraća dan na neplaćeno. Ako je dan bio pokriven iz pretplate,
+ * poništavanje vraća taj novac u pretplatu (da nigde ne nestane). Vraća upisani iznos.
  */
 export async function setPaid(userId: number, dateStr: string, paid: boolean): Promise<number> {
-    const amount = paid ? await dayTotal(userId, dateStr) : 0
     if (!paid) {
+        const fromCredit = await creditUsedForDay(userId, dateStr)
         await db.delete(payments).where(and(eq(payments.userId, userId), eq(payments.date, dateStr)))
+        if (fromCredit > 0) await addCredit(userId, fromCredit, 'vraćeno iz poništenog dana', dateStr)
         return 0
     }
-    await db
-        .insert(payments)
-        .values({ userId, date: dateStr, amount, paidAt: new Date() })
-        .onConflictDoUpdate({
-            target: [payments.userId, payments.date],
-            set: { amount, paidAt: new Date() },
-        })
+    const amount = await dayTotal(userId, dateStr)
+    await upsertPayment(userId, dateStr, amount)
     return amount
 }
 
@@ -513,8 +713,8 @@ export async function setAllPaid(userId: number): Promise<{ days: number; amount
     return { days: owed.length, amount: owed.reduce((a, r) => a + r.remaining, 0) }
 }
 
-/** Ima li korisnik neizmiren račun (dug ili preplata) – koristi se pre brisanja naloga. */
-export async function userHasOpenBalance(userId: number): Promise<{ unpaid: number; overpaid: number }> {
+/** Ima li korisnik neizmiren račun (dug, preplata ili pretplata) – koristi se pre brisanja naloga. */
+export async function userHasOpenBalance(userId: number): Promise<{ unpaid: number; overpaid: number; credit: number }> {
     const b = await getUserBalance(userId)
-    return { unpaid: b?.unpaidTotal ?? 0, overpaid: b?.overpaidTotal ?? 0 }
+    return { unpaid: b?.unpaidTotal ?? 0, overpaid: b?.overpaidTotal ?? 0, credit: b?.credit ?? 0 }
 }

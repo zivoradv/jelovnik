@@ -38,10 +38,11 @@ export async function DELETE(req: NextRequest) {
     if (!id) return badRequest('Nedostaje id.')
     if (auth.user.sub === id) return badRequest('Ne možete obrisati sopstveni nalog.')
 
-    const { unpaid, overpaid } = await userHasOpenBalance(id)
+    const { unpaid, overpaid, credit } = await userHasOpenBalance(id)
     if (unpaid > 0) return badRequest(`Korisnik duguje ${rsd(unpaid)}. Prvo evidentiraj uplatu, pa obriši nalog.`)
     if (overpaid > 0)
         return badRequest(`Korisnik ima preplatu ${rsd(overpaid)}. Prvo je razreši (vrati novac ili prebij), pa obriši nalog.`)
+    if (credit > 0) return badRequest(`Korisnik ima pretplatu ${rsd(credit)}. Prvo je isplati, pa obriši nalog.`)
 
     await deleteUser(id)
     return NextResponse.json({ ok: true })
