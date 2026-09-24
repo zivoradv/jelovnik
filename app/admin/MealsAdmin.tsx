@@ -32,7 +32,7 @@ import {
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { CATEGORIES, DEFAULT_PRICES } from '@/lib/constants'
+import { CATEGORIES, DEFAULT_PRICES, type MealCategory } from '@/lib/constants'
 import { DEFAULT_PRICING, type PricingSettings, rsd, type SubsidyMode, subsidyFor, subsidyLabel } from '@/lib/pricing'
 import { useConfirm } from '../confirm-context'
 
@@ -42,7 +42,7 @@ interface Meal {
     description: string | null
     note: string | null
     price: string
-    category: 'kuvano' | 'suvo'
+    category: MealCategory
     isPosno: boolean
     active: boolean
 }
@@ -52,7 +52,7 @@ type FormState = {
     description: string
     note: string
     price: string
-    category: 'kuvano' | 'suvo'
+    category: MealCategory
     isPosno: boolean
     active: boolean
 }
@@ -79,8 +79,9 @@ function toForm(p: PricingSettings): PricingForm {
 }
 
 /** Podrazumevana cena za kombinaciju kategorije i posnog. */
-function defaultPrice(category: 'kuvano' | 'suvo', isPosno: boolean): number {
-    if (isPosno) return DEFAULT_PRICES.posno
+function defaultPrice(category: MealCategory, isPosno: boolean): number {
+    // dodatak ima svoju cenu bez obzira na posno – posna čorba ne postoji, ali dodatak može da bude i posan
+    if (isPosno && category !== 'dodatak') return DEFAULT_PRICES.posno
     return DEFAULT_PRICES[category]
 }
 
@@ -219,6 +220,7 @@ export default function MealsAdmin() {
     }
 
     const kuvana = meals.filter((m) => m.category === 'kuvano')
+    const dodaci = meals.filter((m) => m.category === 'dodatak')
     const suva = meals.filter((m) => m.category === 'suvo')
     const pricingDirty = JSON.stringify(pricingForm) !== JSON.stringify(toForm(pricing))
 
@@ -290,19 +292,6 @@ export default function MealsAdmin() {
                                 />
                             )}
                         </Stack>
-                        <TextField
-                            label="Cena čorbe uz suvi obrok"
-                            type="number"
-                            size="small"
-                            value={pricingForm.soupPrice}
-                            onChange={(e) => setPricingForm((p) => ({ ...p, soupPrice: e.target.value }))}
-                            slotProps={{
-                                input: { endAdornment: <InputAdornment position="end">RSD</InputAdornment> },
-                                htmlInput: { min: 0 },
-                            }}
-                            helperText="Uz kuvano jelo čorba je uključena u cenu."
-                            sx={{ minWidth: 220 }}
-                        />
                         <Button
                             variant="contained"
                             onClick={savePricing}
@@ -314,10 +303,10 @@ export default function MealsAdmin() {
                     </Stack>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                         Primer sa trenutnim podešavanjem ({subsidyLabel(pricing)}): kuvano {rsd(DEFAULT_PRICES.kuvano)} → korisnik plaća{' '}
-                        {rsd(DEFAULT_PRICES.kuvano - subsidyFor(DEFAULT_PRICES.kuvano, pricing))}; suvo {rsd(DEFAULT_PRICES.suvo)} + čorba{' '}
-                        {rsd(pricing.soupPrice)} → korisnik plaća{' '}
-                        {rsd(DEFAULT_PRICES.suvo + pricing.soupPrice - subsidyFor(DEFAULT_PRICES.suvo + pricing.soupPrice, pricing))}. Svaka
-                        dodatna porcija u istom danu plaća se u celosti.
+                        {rsd(DEFAULT_PRICES.kuvano - subsidyFor(DEFAULT_PRICES.kuvano, pricing))} (čorba je u ceni); suvo{' '}
+                        {rsd(DEFAULT_PRICES.suvo)} → korisnik plaća {rsd(DEFAULT_PRICES.suvo - subsidyFor(DEFAULT_PRICES.suvo, pricing))}.
+                        Svaka dodatna porcija u istom danu plaća se u celosti, a dodaci (čorbe) uvek u celosti – cenu čorbe postavljaš na
+                        samoj stavci, u sekciji „Dodaci”.
                     </Typography>
                 </CardContent>
             </Card>
@@ -336,6 +325,18 @@ export default function MealsAdmin() {
                     ) : (
                         <Stack spacing={1}>
                             {kuvana.map((m) => (
+                                <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m)} />
+                            ))}
+                        </Stack>
+                    )}
+                </DaySection>
+
+                <DaySection label="Dodaci – čorbe (dostupno svaki dan, bez popusta firme)" count={dodaci.length}>
+                    {dodaci.length === 0 ? (
+                        <EmptyHint text="Nema unetih dodataka. Dodaj „Čorba” po ceni od 100 RSD da bi se pojavila u meniju." />
+                    ) : (
+                        <Stack spacing={1}>
+                            {dodaci.map((m) => (
                                 <MealRow key={m.id} meal={m} onEdit={() => openEdit(m)} onDelete={() => remove(m)} />
                             ))}
                         </Stack>
@@ -388,7 +389,7 @@ export default function MealsAdmin() {
                                 select
                                 label="Kategorija"
                                 value={form.category}
-                                onChange={(e) => setCategoryOrPosno({ category: e.target.value as 'kuvano' | 'suvo' })}
+                                onChange={(e) => setCategoryOrPosno({ category: e.target.value as MealCategory })}
                                 fullWidth
                             >
                                 {CATEGORIES.map((c) => (
@@ -423,7 +424,14 @@ export default function MealsAdmin() {
                         </Stack>
                         {form.category === 'kuvano' && (
                             <Alert severity="info" variant="outlined">
-                                Uz kuvano jelo čorba je uključena u cenu – korisnici to vide kao oznaku, ne moraš da je unosiš u opis.
+                                Uz kuvano jelo čorba je uključena u cenu i korisnici to vide kao oznaku – ne moraš da je unosiš u opis. Ako
+                                je jelo <b>posno</b>, čorba ne ide uz njega (posne čorbe nema) i to takođe piše korisniku.
+                            </Alert>
+                        )}
+                        {form.category === 'dodatak' && (
+                            <Alert severity="info" variant="outlined">
+                                Dodatak se naručuje u bilo kojoj količini, dostupan je svaki radni dan (ne ide u nedeljnu šemu) i plaća se u
+                                celosti – popust firme uvek ide na obrok.
                             </Alert>
                         )}
                     </Stack>

@@ -11,7 +11,6 @@ export interface OrderItemInput {
     mealId?: number | null
     note?: string | null
     quantity?: number | null
-    withSoup?: boolean | null
 }
 
 export async function getUserOrdersForDate(userId: number, dateStr: string): Promise<Order[]> {
@@ -101,19 +100,17 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
     const mealById = new Map(mealRows.map((m) => [m.id, m]))
 
     // isto jelo dva puta u zahtevu → spoji količine (da ne bi popust dva puta „video” istu porciju)
-    const merged = new Map<number, { note: string | null; withSoup: boolean; quantity: number }>()
+    const merged = new Map<number, { note: string | null; quantity: number }>()
     for (const it of items) {
         const mealId = it.mealId ?? null
         if (mealId === null) continue
         const meal = mealById.get(mealId)
         if (!meal?.active) continue
-        const isSuvo = meal.category === 'suvo'
         const qty = Math.min(99, Math.max(1, Math.round(Number(it.quantity) || 1)))
         const prev = merged.get(mealId)
         merged.set(mealId, {
-            // suvi obrok nema napomenu, ali može da ima čorbu; kuvano ima napomenu, čorba je uključena
-            note: isSuvo ? null : prev?.note || it.note?.trim() || null,
-            withSoup: isSuvo ? Boolean(prev?.withSoup || it.withSoup) : false,
+            // napomena ide samo uz kuvano jelo; suvi obrok i dodaci se poručuju „takvi kakvi su”
+            note: meal.category === 'kuvano' ? prev?.note || it.note?.trim() || null : null,
             quantity: Math.min(99, (prev?.quantity ?? 0) + qty),
         })
     }
@@ -128,17 +125,19 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
 
     const pricing = await getPricingSettings()
     const entries = [...merged.entries()]
-    const units = entries.map(([mealId, it]) =>
-        Math.round(unitPrice({ price: Number(mealById.get(mealId)?.price) || 0, withSoup: it.withSoup }, pricing)),
+    const units = entries.map(([mealId]) =>
+        Math.round(unitPrice({ price: Number(mealById.get(mealId)?.price) || 0, withSoup: false }, pricing)),
     )
-    const subsidies = allocateSubsidy(units, pricing)
+    // dodaci (čorba) se plaćaju celi – popust firme sme da padne samo na obrok
+    const subsidized = entries.map(([mealId]) => mealById.get(mealId)?.category !== 'dodatak')
+    const subsidies = allocateSubsidy(units, pricing, subsidized)
 
     const values = entries.map(([mealId, it], i) => ({
         userId,
         date: dateStr,
         mealId,
         note: it.note,
-        withSoup: it.withSoup,
+        withSoup: false,
         quantity: it.quantity,
         unitPrice: units[i],
         subsidy: subsidies[i],
@@ -272,6 +271,8 @@ export interface OrderDetailRow {
     mealId: number
     mealName: string | null
     category: string | null
+    /** null kad je jelo u međuvremenu obrisano (leftJoin). */
+    isPosno: boolean | null
     /** Zamrznuta cena porcije (jelo + čorba). */
     unitPrice: number
     note: string | null
@@ -290,6 +291,7 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
             mealId: orders.mealId,
             mealName: meals.name,
             category: meals.category,
+            isPosno: meals.isPosno,
             unitPrice: orders.unitPrice,
             note: orders.note,
             withSoup: orders.withSoup,
@@ -343,6 +345,7 @@ export async function repriceFutureOrders(): Promise<number> {
             unitPrice: orders.unitPrice,
             subsidy: orders.subsidy,
             price: meals.price,
+            category: meals.category,
         })
         .from(orders)
         .innerJoin(meals, eq(orders.mealId, meals.id))
@@ -359,7 +362,11 @@ export async function repriceFutureOrders(): Promise<number> {
     const changes: { id: number; unitPrice: number; subsidy: number }[] = []
     for (const list of perDay.values()) {
         const units = list.map((r) => Math.round(unitPrice({ price: Number(r.price) || 0, withSoup: r.withSoup }, pricing)))
-        const subs = allocateSubsidy(units, pricing)
+        const subs = allocateSubsidy(
+            units,
+            pricing,
+            list.map((r) => r.category !== 'dodatak'),
+        )
         list.forEach((r, i) => {
             if (r.unitPrice !== units[i] || r.subsidy !== subs[i]) changes.push({ id: r.id, unitPrice: units[i], subsidy: subs[i] })
         })

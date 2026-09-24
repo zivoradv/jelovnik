@@ -1,5 +1,6 @@
 import { config } from 'dotenv'
 import { db, meals, menuTemplateItems, menuTemplates, settings, users, weekMenus } from '../drizzle'
+import type { MealCategory } from '../lib/constants'
 import { startOfWeek, toISODate } from '../lib/date'
 import { hashPassword } from '../lib/password'
 import { DEFAULT_PRICING, subsidyLabel } from '../lib/pricing'
@@ -11,7 +12,7 @@ type SeedMeal = {
     description?: string
     note?: string
     price: string
-    category: 'kuvano' | 'suvo'
+    category: MealCategory
     isPosno?: boolean
     /** dan u početnoj šemi (1–5); samo za kuvana jela */
     day?: number
@@ -31,6 +32,8 @@ const KUVANA: SeedMeal[] = [
     { name: 'Špagete bolonjez', price: '500', day: 5, category: 'kuvano' },
     { name: 'Sarma (posno)', price: '400', day: 5, category: 'kuvano', isPosno: true },
 ]
+
+const DODACI: SeedMeal[] = [{ name: 'Čorba', description: 'Dodatak – uzmi koliko hoćeš', price: '100', category: 'dodatak' }]
 
 const SUVA: SeedMeal[] = [
     { name: 'Jaja na oko i viršle', price: '400', category: 'suvo' },
@@ -95,7 +98,7 @@ async function main() {
 
     const existingMeals = await db.select().from(meals).limit(1)
     if (existingMeals.length === 0) {
-        const all = [...KUVANA, ...SUVA]
+        const all = [...KUVANA, ...DODACI, ...SUVA]
         const inserted = await db
             .insert(meals)
             .values(

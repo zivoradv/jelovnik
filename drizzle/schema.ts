@@ -3,7 +3,8 @@ import { boolean, date, index, integer, numeric, pgEnum, pgTable, serial, text, 
 
 export const roleEnum = pgEnum('role', ['admin', 'user'])
 
-export const categoryEnum = pgEnum('category', ['kuvano', 'suvo'])
+/** `dodatak` = stvari koje se kupuju uz obrok (čorba); nisu vezane za nedeljnu šemu i ne dobijaju popust firme. */
+export const categoryEnum = pgEnum('category', ['kuvano', 'suvo', 'dodatak'])
 
 export const notificationTypeEnum = pgEnum('notification_type', ['raspored', 'jelo', 'dug', 'uplata', 'info', 'pivo'])
 

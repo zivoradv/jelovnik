@@ -32,7 +32,7 @@ import {
     Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { WEEKDAYS } from '@/lib/constants'
+import { type MealCategory, WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, fromISODate, startOfWeek, toISODate } from '@/lib/date'
 import { useConfirm } from '../confirm-context'
 
@@ -40,7 +40,7 @@ interface Meal {
     id: number
     name: string
     price: string
-    category: 'kuvano' | 'suvo'
+    category: MealCategory
     isPosno: boolean
     active: boolean
 }

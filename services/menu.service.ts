@@ -145,14 +145,22 @@ export interface DayMenu {
     meals: Meal[]
 }
 
-/** Meni za konkretan datum: kuvana jela iz šeme te nedelje + svi aktivni suvi obroci. */
+/**
+ * Meni za konkretan datum: kuvana jela iz šeme te nedelje + svi aktivni dodaci i suvi obroci.
+ * Dodaci i suvi obroci ne zavise od šeme – dostupni su svaki radni dan.
+ */
 export async function getMenuForDate(dateStr: string): Promise<DayMenu> {
     const d = fromISODate(dateStr)
     const weekStart = toISODate(startOfWeek(d))
     const dow = d.getDay()
 
-    const [assignment, suva] = await Promise.all([
+    const [assignment, dodaci, suva] = await Promise.all([
         getWeekAssignment(weekStart),
+        db
+            .select()
+            .from(meals)
+            .where(and(eq(meals.active, true), eq(meals.category, 'dodatak')))
+            .orderBy(asc(meals.name)),
         db
             .select()
             .from(meals)
@@ -170,5 +178,5 @@ export async function getMenuForDate(dateStr: string): Promise<DayMenu> {
             .orderBy(asc(meals.name))
     }
 
-    return { weekStart, templateName: assignment.template?.name ?? null, meals: [...kuvana, ...suva] }
+    return { weekStart, templateName: assignment.template?.name ?? null, meals: [...kuvana, ...dodaci, ...suva] }
 }

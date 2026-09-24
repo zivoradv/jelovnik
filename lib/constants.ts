@@ -18,13 +18,17 @@ export const DAY_LABELS: Record<number, string> = {
 
 export const CATEGORIES = [
     { value: 'kuvano', label: 'Kuvano jelo' },
+    { value: 'dodatak', label: 'Dodatak (čorba)' },
     { value: 'suvo', label: 'Suvi obrok' },
 ] as const
+
+export type MealCategory = (typeof CATEGORIES)[number]['value']
 
 /** Podrazumevane cene pri unosu novog jela (RSD). */
 export const DEFAULT_PRICES = {
     kuvano: 500,
     suvo: 400,
+    dodatak: 100,
     posno: 400,
 } as const
 

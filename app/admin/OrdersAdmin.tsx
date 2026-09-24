@@ -34,6 +34,7 @@ interface Row {
     mealId: number
     mealName: string | null
     category: string | null
+    isPosno: boolean | null
     unitPrice: number
     note: string | null
     withSoup: boolean
@@ -50,7 +51,12 @@ interface Person {
 interface Group {
     name: string
     portions: number
+    /** Starije porudžbine: čorba doplaćena uz suvi obrok (kolona se više ne koristi). */
     soupPortions: number
+    /** Kuvano jelo koje nije posno – uz svaku porciju ide čorba. */
+    soupIncluded: boolean
+    /** Dodatak, tj. čorba naručena kao zasebna stavka. */
+    isAddon: boolean
     people: Person[]
 }
 
@@ -89,7 +95,14 @@ export default function OrdersAdmin() {
         for (const r of rows) {
             let g = map.get(r.mealId)
             if (!g) {
-                g = { name: r.mealName || '-', portions: 0, soupPortions: 0, people: [] }
+                g = {
+                    name: r.mealName || '-',
+                    portions: 0,
+                    soupPortions: 0,
+                    soupIncluded: r.category === 'kuvano' && !r.isPosno,
+                    isAddon: r.category === 'dodatak',
+                    people: [],
+                }
                 map.set(r.mealId, g)
             }
             g.portions += r.quantity
@@ -101,7 +114,11 @@ export default function OrdersAdmin() {
 
     const totalPortions = grouped.reduce((a, g) => a + g.portions, 0)
     const uniqueUsers = new Set(rows.map((r) => r.userId)).size
-    const totalSoups = grouped.reduce((a, g) => a + g.soupPortions, 0)
+    /**
+     * Sve čorbe za taj dan: one koje idu uz kuvano jelo (posno ih ne dobija),
+     * one naručene kao dodatak i doplate iz starijih porudžbina uz suvi obrok.
+     */
+    const totalSoups = grouped.reduce((a, g) => a + (g.soupIncluded || g.isAddon ? g.portions : 0) + g.soupPortions, 0)
 
     function soupSuffix(g: Group): string {
         return g.soupPortions > 0 ? ` (${g.soupPortions} sa čorbom)` : ''
@@ -120,8 +137,9 @@ export default function OrdersAdmin() {
                 lines.push(`   - ${p.name}${q}${s}${n}`)
             }
         }
+        lines.push(`Ukupno čorbi: ${totalSoups}`)
         lines.push('')
-        lines.push(`Ukupno porcija: ${totalPortions} - Korisnika: ${uniqueUsers}${totalSoups > 0 ? ` - Čorbi uz suvo: ${totalSoups}` : ''}`)
+        lines.push(`Ukupno porcija: ${totalPortions} - Korisnika: ${uniqueUsers}`)
         return lines.join('\n')
     }
 
@@ -132,8 +150,7 @@ export default function OrdersAdmin() {
         for (const g of grouped) {
             lines.push(`${g.name} - ${g.portions}${soupSuffix(g)}`)
         }
-        lines.push('')
-        lines.push(`Ukupno: ${totalPortions}${totalSoups > 0 ? ` (+ ${totalSoups} čorbi uz suvo)` : ''}`)
+        lines.push(`Ukupno čorbi: ${totalSoups}`)
         return lines.join('\n')
     }
 

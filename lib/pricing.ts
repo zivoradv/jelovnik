@@ -30,6 +30,8 @@ export interface CostItem {
     price: number
     quantity: number
     withSoup: boolean
+    /** Dodaci (čorba) se plaćaju u celosti – popust firme ide na obrok. Podrazumevano true. */
+    subsidized?: boolean
 }
 
 export interface DayCost {
@@ -54,16 +56,18 @@ export function subsidyFor(unit: number, s: PricingSettings): number {
 }
 
 export function computeDayCost(items: CostItem[], s: PricingSettings): DayCost {
-    const units: number[] = []
+    let full = 0
+    /** Najskuplja porcija koja sme da dobije popust (dodaci se preskaču). */
+    let bestSubsidized = 0
     for (const it of items) {
         const u = unitPrice(it, s)
         if (u <= 0) continue
         const q = Math.max(0, Math.round(Number(it.quantity) || 0))
-        for (let i = 0; i < q; i++) units.push(u)
+        if (q <= 0) continue
+        full += u * q
+        if (it.subsidized !== false && u > bestSubsidized) bestSubsidized = u
     }
-    units.sort((a, b) => b - a)
-    const full = units.reduce((a, b) => a + b, 0)
-    const subsidy = units.length > 0 ? subsidyFor(units[0], s) : 0
+    const subsidy = bestSubsidized > 0 ? subsidyFor(bestSubsidized, s) : 0
     return { full, subsidy, toPay: full - subsidy }
 }
 
@@ -71,11 +75,14 @@ export function computeDayCost(items: CostItem[], s: PricingSettings): DayCost {
  * Raspoređuje popust firme po stavkama: ceo iznos ide na stavku sa najskupljom porcijom,
  * ostale dobijaju 0. Vraća niz istog redosleda kao `units`. Koristi se pri upisu porudžbine
  * da bi se popust „zamrznuo” uz cenu.
+ *
+ * `subsidized[i] === false` isključuje stavku iz obračuna (dodaci se plaćaju celi).
  */
-export function allocateSubsidy(units: number[], s: PricingSettings): number[] {
+export function allocateSubsidy(units: number[], s: PricingSettings, subsidized?: boolean[]): number[] {
     const out = units.map(() => 0)
     let best = -1
     for (let i = 0; i < units.length; i++) {
+        if (subsidized?.[i] === false) continue
         if (units[i] > 0 && (best === -1 || units[i] > units[best])) best = i
     }
     if (best >= 0) out[best] = subsidyFor(units[best], s)

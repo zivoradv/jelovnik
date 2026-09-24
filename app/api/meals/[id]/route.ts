@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, errorMessage, requireAdmin } from '@/lib/api'
+import { CATEGORIES, type MealCategory } from '@/lib/constants'
 import { deleteMeal, updateMeal } from '@/services/meals.service'
+
+function parseCategory(value: unknown): MealCategory {
+    const found = CATEGORIES.find((c) => c.value === value)
+    return found ? found.value : 'kuvano'
+}
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -21,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
             if (!Number.isFinite(price) || price < 0) return badRequest('Cena mora biti broj (0 ili više).')
             patch.price = String(Math.round(price))
         }
-        if (body.category !== undefined) patch.category = body.category === 'suvo' ? 'suvo' : 'kuvano'
+        if (body.category !== undefined) patch.category = parseCategory(body.category)
         if (body.isPosno !== undefined) patch.isPosno = Boolean(body.isPosno)
         if (body.active !== undefined) patch.active = Boolean(body.active)
 

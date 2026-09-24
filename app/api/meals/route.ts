@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, errorMessage, requireAdmin } from '@/lib/api'
+import { CATEGORIES, type MealCategory } from '@/lib/constants'
 import { createMeal, listMeals } from '@/services/meals.service'
+
+function parseCategory(value: unknown): MealCategory {
+    const found = CATEGORIES.find((c) => c.value === value)
+    return found ? found.value : 'kuvano'
+}
 
 export async function GET() {
     const auth = await requireAdmin()
@@ -16,7 +22,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
         if (!body.name || !String(body.name).trim()) return badRequest('Naziv jela je obavezan.')
-        const category = body.category === 'suvo' ? 'suvo' : 'kuvano'
+        const category = parseCategory(body.category)
 
         const meal = await createMeal({
             name: String(body.name).trim(),
