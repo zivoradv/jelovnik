@@ -24,6 +24,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
 import { fullName } from '@/lib/users'
+import { useConfirm } from '../confirm-context'
 
 interface Row {
     orderId: number
@@ -42,6 +43,7 @@ interface Row {
 }
 
 interface Person {
+    userId: number
     username: string
     name: string
     note: string | null
@@ -74,6 +76,8 @@ export default function OrdersAdmin() {
     const [rows, setRows] = useState<Row[]>([])
     const [loading, setLoading] = useState(true)
     const [toast, setToast] = useState('')
+    const [error, setError] = useState('')
+    const confirm = useConfirm()
 
     const load = useCallback(async (d: string) => {
         setLoading(true)
@@ -107,7 +111,14 @@ export default function OrdersAdmin() {
             }
             g.portions += r.quantity
             if (r.withSoup) g.soupPortions += r.quantity
-            g.people.push({ username: r.username, name: fullName(r), note: r.note, withSoup: r.withSoup, qty: r.quantity })
+            g.people.push({
+                userId: r.userId,
+                username: r.username,
+                name: fullName(r),
+                note: r.note,
+                withSoup: r.withSoup,
+                qty: r.quantity,
+            })
         }
         return Array.from(map.values()).sort((a, b) => b.portions - a.portions)
     }, [rows])
@@ -154,6 +165,25 @@ export default function OrdersAdmin() {
         return lines.join('\n')
     }
 
+    async function deleteOrder(p: Person) {
+        const ok = await confirm({
+            title: 'Obrisati porudžbinu?',
+            message: `${p.name}, ${formatDateLong(fromISODate(date))}: briše se cela porudžbina za taj dan (sva jela). Ako je dan plaćen, novac ide u pretplatu.`,
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
+        setError('')
+        const res = await fetch(`/api/admin/orders?date=${date}&userId=${p.userId}`, { method: 'DELETE' })
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            setError(data.error || 'Brisanje nije uspelo.')
+            return
+        }
+        setToast(`Porudžbina korisnika ${p.name} je obrisana.`)
+        load(date)
+    }
+
     async function copy(text: string, msg: string) {
         await navigator.clipboard.writeText(text)
         setToast(msg)
@@ -180,6 +210,11 @@ export default function OrdersAdmin() {
 
     return (
         <Box>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
             <Card sx={{ p: { xs: 2, sm: 2.5 }, mb: 2.5 }}>
                 <Stack
                     direction={{ xs: 'column', md: 'row' }}
@@ -285,11 +320,18 @@ export default function OrdersAdmin() {
                                                             size="small"
                                                             label={label}
                                                             variant="outlined"
+                                                            onDelete={() => deleteOrder(p)}
                                                             sx={{ borderStyle: 'dashed' }}
                                                         />
                                                     </Tooltip>
                                                 ) : (
-                                                    <Chip key={p.username} size="small" label={label} variant="outlined" />
+                                                    <Chip
+                                                        key={p.username}
+                                                        size="small"
+                                                        label={label}
+                                                        variant="outlined"
+                                                        onDelete={() => deleteOrder(p)}
+                                                    />
                                                 )
                                             })}
                                         </Box>

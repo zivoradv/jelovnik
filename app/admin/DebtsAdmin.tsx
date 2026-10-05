@@ -2,6 +2,7 @@
 
 import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import DoneAllIcon from '@mui/icons-material/DoneAll'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import IndeterminateCheckBoxOutlinedIcon from '@mui/icons-material/IndeterminateCheckBoxOutlined'
@@ -22,6 +23,7 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
+    DialogContentText,
     DialogTitle,
     Divider,
     FormControlLabel,
@@ -192,6 +194,49 @@ export default function DebtsAdmin() {
         setError('')
         try {
             if (await post({ userId: b.userId, date: r.date, paid })) await load()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    /** Brisanje porudžbine za dan (hrana nije stigla, greška) – dug nestaje, plaćen iznos ide u pretplatu. */
+    async function deleteDay(b: Balance, r: DebtRow) {
+        // dijalog vraća samo da/ne, pa checkbox upisuje izbor ovde
+        let notify = true
+        const ok = await confirm({
+            title: 'Obrisati porudžbinu za taj dan?',
+            message: (
+                <>
+                    <DialogContentText>
+                        {fullName(b)}, {formatDateLong(fromISODate(r.date))}: briše se cela porudžbina ({r.mealCount} porc., {rsd(r.total)}
+                        ).{r.paid > 0 && ` Uplaćenih ${rsd(r.paid)} ide u pretplatu.`}
+                    </DialogContentText>
+                    <NotifyCheckbox
+                        onChange={(v) => {
+                            notify = v
+                        }}
+                    />
+                </>
+            ),
+            confirmText: 'Obriši',
+            danger: true,
+        })
+        if (!ok) return
+        const key = `${b.userId}|${r.date}`
+        setBusy(key)
+        setError('')
+        try {
+            const res = await fetch(`/api/admin/orders?date=${r.date}&userId=${b.userId}&notify=${notify ? 1 : 0}`, {
+                method: 'DELETE',
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                setError(data.error || 'Brisanje nije uspelo.')
+                return
+            }
+            await load()
+            if (r.paid > 0) await loadCreditLog(b.userId)
+            setToast(`${fullName(b)}: porudžbina za ${formatDateLong(fromISODate(r.date))} obrisana.`)
         } finally {
             setBusy(null)
         }
@@ -543,7 +588,7 @@ export default function DebtsAdmin() {
                                                         direction="row"
                                                         spacing={1}
                                                         sx={(t) => ({
-                                                            alignItems: 'flex-start',
+                                                            alignItems: 'center',
                                                             px: { xs: 0.5, sm: 1 },
                                                             py: 0.75,
                                                             borderRadius: 2,
@@ -653,6 +698,21 @@ export default function DebtsAdmin() {
                                                                 </Stack>
                                                             )}
                                                         </Box>
+                                                        {r.mealCount > 0 && (
+                                                            <Tooltip title="Obriši porudžbinu za ovaj dan">
+                                                                <span>
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        aria-label={`Obriši porudžbinu ${r.date}`}
+                                                                        disabled={busy === key}
+                                                                        onClick={() => deleteDay(b, r)}
+                                                                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                                                                    >
+                                                                        <DeleteOutlineIcon fontSize="medium" />
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
+                                                        )}
                                                     </Stack>
                                                 )
                                             })}
@@ -967,6 +1027,25 @@ function PayDialog({
                 </Button>
             </DialogActions>
         </Dialog>
+    )
+}
+
+function NotifyCheckbox({ onChange }: { onChange: (v: boolean) => void }) {
+    const [checked, setChecked] = useState(true)
+    return (
+        <FormControlLabel
+            sx={{ mt: 1.5 }}
+            control={
+                <Checkbox
+                    checked={checked}
+                    onChange={(e) => {
+                        setChecked(e.target.checked)
+                        onChange(e.target.checked)
+                    }}
+                />
+            }
+            label="Obavesti korisnika"
+        />
     )
 }
 

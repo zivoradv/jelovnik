@@ -151,6 +151,28 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
     return saved
 }
 
+/**
+ * Admin briše celu porudžbinu korisnika za jedan dan (greška, dostava nije stigla…) – bez provere roka.
+ * Ako je dan već plaćen, novac ide u pretplatu kroz `afterOrderChange`. Vraća broj obrisanih stavki.
+ */
+export async function adminDeleteDayOrders(userId: number, dateStr: string, notify = true): Promise<number> {
+    const deleted = await db
+        .delete(orders)
+        .where(and(eq(orders.userId, userId), eq(orders.date, dateStr)))
+        .returning({ id: orders.id })
+    if (deleted.length === 0) return 0
+    if (notify) {
+        await notifyUsers([userId], {
+            type: 'info',
+            title: `Porudžbina za ${formatDateLong(fromISODate(dateStr))} je obrisana`,
+            body: 'Administrator je obrisao tvoju porudžbinu za taj dan.',
+            link: '/',
+        })
+    }
+    await afterOrderChange(userId, dateStr, 0, notify)
+    return deleted.length
+}
+
 async function userLabel(userId: number): Promise<string> {
     const [u] = await db
         .select({ firstName: users.firstName, lastName: users.lastName, username: users.username })
@@ -166,7 +188,7 @@ async function userLabel(userId: number): Promise<string> {
  *  – ako korisnik ima pretplatu, ona odmah pokriva dugove (najstariji prvi) – zato i postoji.
  * Korisnik i administratori dobijaju obaveštenje o svakoj takvoj promeni.
  */
-async function afterOrderChange(userId: number, dateStr: string, newTotal: number): Promise<void> {
+async function afterOrderChange(userId: number, dateStr: string, newTotal: number, notifyUser = true): Promise<void> {
     const [payment] = await db
         .select({ amount: payments.amount })
         .from(payments)
@@ -203,12 +225,13 @@ async function afterOrderChange(userId: number, dateStr: string, newTotal: numbe
     }
 
     await Promise.all([
-        notifyUsers([userId], {
-            type: swept > 0 || used.applied > 0 ? 'uplata' : 'dug',
-            title: stillOwes > 0 ? `Promenjena porudžbina za plaćen dan (${dateLabel})` : `Stanje ažurirano (${dateLabel})`,
-            body: userLines.join(' '),
-            link: '/dug',
-        }),
+        notifyUser &&
+            notifyUsers([userId], {
+                type: swept > 0 || used.applied > 0 ? 'uplata' : 'dug',
+                title: stillOwes > 0 ? `Promenjena porudžbina za plaćen dan (${dateLabel})` : `Stanje ažurirano (${dateLabel})`,
+                body: userLines.join(' '),
+                link: '/dug',
+            }),
         notifyAdmins({
             type: 'dug',
             title: `${who}: izmena porudžbine za plaćen dan ${dateLabel}`,
