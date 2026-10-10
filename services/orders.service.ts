@@ -327,6 +327,28 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
         .orderBy(asc(meals.name), asc(users.username))
 }
 
+export interface WeekTotals {
+    from: string
+    to: string
+    /** Puna cena svih porcija u nedelji. */
+    full: number
+    /** Deo koji pokriva firma. */
+    subsidy: number
+    /** Ono što plaćaju korisnici. */
+    toPay: number
+}
+
+/** Ukupan iznos svih porudžbina za radnu nedelju u kojoj je `anyDayIso` (iz zamrznutih cena). */
+export async function getWeekTotals(anyDayIso: string): Promise<WeekTotals> {
+    const days = workdaysOfWeek(fromISODate(anyDayIso)).map(toISODate)
+    const rows = await db
+        .select({ quantity: orders.quantity, unitPrice: orders.unitPrice, subsidy: orders.subsidy })
+        .from(orders)
+        .where(and(gte(orders.date, days[0]), lte(orders.date, days[4])))
+    const cost = dayCostFromSnapshot(rows)
+    return { from: days[0], to: days[4], full: cost.full, subsidy: cost.subsidy, toPay: cost.toPay }
+}
+
 /** Korisnici koji imaju porudžbinu datog jela za današnji ili neki budući dan. */
 export async function usersWithUpcomingOrdersOfMeal(mealId: number): Promise<{ userId: number; dates: string[] }[]> {
     const today = toISODate(new Date())
@@ -420,6 +442,8 @@ export interface DebtRow {
     remaining: number
     status: DebtStatus
     mealCount: number
+    /** Šta je tog dana naručeno (naziv i broj porcija). */
+    items: { name: string; quantity: number }[]
     paidAt: string | null
 }
 
@@ -465,8 +489,10 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
                 quantity: orders.quantity,
                 unitPrice: orders.unitPrice,
                 subsidy: orders.subsidy,
+                name: meals.name,
             })
             .from(orders)
+            .leftJoin(meals, eq(orders.mealId, meals.id))
             .where(orderWhere),
         db.select().from(payments).where(paymentWhere),
         db
@@ -476,7 +502,7 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
             .orderBy(asc(users.lastName), asc(users.firstName), asc(users.username)),
     ])
 
-    type Bucket = { items: { unitPrice: number; quantity: number; subsidy: number }[]; mealCount: number }
+    type Bucket = { items: { unitPrice: number; quantity: number; subsidy: number; name: string }[]; mealCount: number }
     const buckets = new Map<number, Map<string, Bucket>>()
     const bucketFor = (uid: number, date: string): Bucket => {
         let perUser = buckets.get(uid)
@@ -494,7 +520,7 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
     for (const r of orderRows) {
         const b = bucketFor(r.userId, r.date)
         b.mealCount += r.quantity
-        b.items.push({ unitPrice: r.unitPrice, quantity: r.quantity, subsidy: r.subsidy })
+        b.items.push({ unitPrice: r.unitPrice, quantity: r.quantity, subsidy: r.subsidy, name: r.name ?? 'Obrisano jelo' })
     }
 
     // dan sa uplatom, a bez porudžbine (korisnik obrisao porudžbinu posle uplate) mora da se vidi kao preplata
@@ -522,6 +548,7 @@ async function computeBalances(userId: number | null): Promise<Map<number, UserB
                     remaining: cost.toPay - paid,
                     status: statusOf(cost.toPay, paid),
                     mealCount: b.mealCount,
+                    items: b.items.map((it) => ({ name: it.name, quantity: it.quantity })),
                     paidAt: p?.paidAt ? p.paidAt.toISOString() : null,
                 }
             })

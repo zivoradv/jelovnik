@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, DATE_RE, errorMessage, requireAdmin } from '@/lib/api'
-import { formatDateLong, fromISODate } from '@/lib/date'
+import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { notifyUsers } from '@/services/notifications.service'
 import {
@@ -8,6 +8,7 @@ import {
     getAllBalances,
     getCreditLog,
     getUserBalance,
+    getWeekTotals,
     recordPayment,
     refundCredit,
     setAllPaid,
@@ -26,8 +27,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ credit: balance?.credit ?? 0, log })
     }
 
-    const balances = await getAllBalances()
-    return NextResponse.json({ balances })
+    const [balances, week] = await Promise.all([getAllBalances(), getWeekTotals(toISODate(new Date()))])
+    return NextResponse.json({ balances, week })
 }
 
 function dayLabel(n: number): string {

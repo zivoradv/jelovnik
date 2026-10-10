@@ -1,5 +1,6 @@
 'use client'
 
+import BusinessIcon from '@mui/icons-material/Business'
 import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
@@ -9,6 +10,7 @@ import IndeterminateCheckBoxOutlinedIcon from '@mui/icons-material/Indeterminate
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
+import RestaurantIcon from '@mui/icons-material/Restaurant'
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined'
 import {
     Alert,
@@ -37,7 +39,7 @@ import {
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { formatDateLong, fromISODate } from '@/lib/date'
+import { formatDateLong, formatDateShort, fromISODate } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { fullName, initials } from '@/lib/users'
 import { useConfirm } from '../confirm-context'
@@ -53,6 +55,7 @@ interface DebtRow {
     remaining: number
     status: DebtStatus
     mealCount: number
+    items: { name: string; quantity: number }[]
     paidAt: string | null
 }
 
@@ -69,6 +72,14 @@ interface Balance {
     /** Neiskorišćena pretplata – novac koji čeka buduće obroke. */
     credit: number
     balance: number
+}
+
+interface WeekTotals {
+    from: string
+    to: string
+    full: number
+    subsidy: number
+    toPay: number
 }
 
 interface CreditEntry {
@@ -90,6 +101,7 @@ const STATUS_LABEL: Record<DebtStatus, { label: string; color: 'success' | 'prim
 export default function DebtsAdmin() {
     const confirm = useConfirm()
     const [balances, setBalances] = useState<Balance[]>([])
+    const [week, setWeek] = useState<WeekTotals | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState('')
@@ -116,6 +128,7 @@ export default function DebtsAdmin() {
             const res = await fetch('/api/admin/payments')
             const data = await res.json()
             setBalances(data.balances || [])
+            setWeek(data.week ?? null)
         } catch {
             setError('Greška pri učitavanju dugova.')
         } finally {
@@ -417,6 +430,19 @@ export default function DebtsAdmin() {
                 <StatTile label="Pretplata (kod tebe)" value={rsd(totals.credit)} icon={<SavingsOutlinedIcon fontSize="small" />} />
             </Box>
 
+            {week && (
+                <Box sx={{ mb: 2.5 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Ova nedelja: {formatDateShort(fromISODate(week.from))} – {formatDateShort(fromISODate(week.to))}
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+                        <StatTile label="Porudžbine ukupno" value={rsd(week.full)} icon={<RestaurantIcon fontSize="small" />} />
+                        <StatTile label="Plaćaju korisnici" value={rsd(week.toPay)} icon={<PaymentsIcon fontSize="small" />} />
+                        <StatTile label="Pokriva firma" value={rsd(week.subsidy)} icon={<BusinessIcon fontSize="small" />} />
+                    </Box>
+                </Box>
+            )}
+
             <Alert severity="info" sx={{ mb: 2.5 }}>
                 Cena svakog dana je zamrznuta u trenutku naručivanja. Kad neko plati <b>više nego što duguje</b>, višak ostaje kao{' '}
                 <b>pretplata</b> i sam pokriva naredne obroke – najstariji dug prvi. Isto važi i kad korisnik smanji već plaćenu porudžbinu:
@@ -644,6 +670,15 @@ export default function DebtsAdmin() {
                                                                     {rsd(r.total)}
                                                                 </Typography>
                                                                 <Chip size="small" color={st.color} variant="outlined" label={st.label} />
+                                                                {r.items.length > 0 && (
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        {r.items
+                                                                            .map((it) =>
+                                                                                it.quantity > 1 ? `${it.name} ×${it.quantity}` : it.name,
+                                                                            )
+                                                                            .join(', ')}
+                                                                    </Typography>
+                                                                )}
                                                             </Stack>
                                                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                                                 puna {rsd(r.full)}
