@@ -34,6 +34,7 @@ import { formatDateLong } from '@/lib/date'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
 import PageLoader from '../components/PageLoader'
+import PhoneNotifications from '../components/PhoneNotifications'
 import { ThemeList } from '../components/ThemePicker'
 import ThemeToggle from '../components/ThemeToggle'
 
@@ -345,6 +346,8 @@ export default function ProfilPage() {
                     </CardContent>
                 </Card>
             </Box>
+
+            <PhoneNotifications onSaved={setToast} />
 
             <Card>
                 <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>

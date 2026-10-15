@@ -17,6 +17,22 @@ export const users = pgTable('users', {
     firstName: text('first_name').notNull().default(''),
     lastName: text('last_name').notNull().default(''),
     role: roleEnum('role').notNull().default('user'),
+    /** Vreme podsetnika za naručivanje (HH:MM, Beograd); null = isključen. */
+    reminderTime: text('reminder_time'),
+    /** Dan (Beograd) kada je poslednji podsetnik poslat – da ne stigne dvaput istog dana. */
+    remindedOn: date('reminded_on'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+/** Web Push pretplata jednog uređaja (telefon, browser). */
+export const pushSubscriptions = pgTable('push_subscriptions', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+        .notNull()
+        .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull().unique(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

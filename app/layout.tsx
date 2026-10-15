@@ -23,6 +23,8 @@ const sans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
     title: 'Brezna Obrok',
     description: 'Brezna Obrok – naručivanje dnevnih obroka.',
+    appleWebApp: { capable: true, title: 'Brezna Obrok' },
+    icons: { apple: '/apple-touch-icon.png' },
 }
 
 export const viewport: Viewport = {

@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { db, type Notification, notifications, users } from '@/drizzle'
+import { pushToUsers } from './push.service'
 
 export type NotificationType = Notification['type']
 
@@ -29,6 +30,7 @@ export async function notifyUsers(userIds: number[], input: NotificationInput): 
             link: input.link ?? null,
         })),
     )
+    await pushToUsers(ids, input)
     return ids.length
 }
 
