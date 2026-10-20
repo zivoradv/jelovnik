@@ -6,6 +6,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { VIRTUOZ_MEALS } from '@/lib/badges'
+import { currentMonth, monthLabel, shiftMonth } from '@/lib/date'
 import { fullName } from '@/lib/users'
 import { useAuth } from '../auth-context'
 import PageLoader from '../components/PageLoader'
@@ -30,23 +31,6 @@ interface MonthlyStats {
 
 const MEDALS = ['🥇', '🥈', '🥉']
 const TITLES = ['Najgladniji', 'Zamenik Najgladnijeg', 'Bronzana viljuška']
-const MONTHS = ['januar', 'februar', 'mart', 'april', 'maj', 'jun', 'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar']
-
-function currentMonth(): string {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function shiftMonth(ym: string, delta: number): string {
-    const [y, m] = ym.split('-').map(Number)
-    const d = new Date(y, m - 1 + delta, 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function monthLabel(ym: string): string {
-    const [y, m] = ym.split('-').map(Number)
-    return `${MONTHS[m - 1]} ${y}.`
-}
 
 export default function StatistikaPage() {
     const { user } = useAuth()

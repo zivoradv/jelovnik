@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db, meals, orders, users } from '@/drizzle'
 import type { UserStats } from '@/lib/badges'
-import { addDays, fromISODate, toISODate } from '@/lib/date'
+import { addDays, fromISODate, monthRange, toISODate } from '@/lib/date'
 
 function belgradeHour(d: Date): number {
     return Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Europe/Belgrade' }).format(d))
@@ -85,13 +85,6 @@ export interface MonthlyStats {
     virtuoz: { userId: number; username: string; firstName: string; lastName: string; distinctMeals: number } | null
     totalPortions: number
     totalUsers: number
-}
-
-function monthRange(yearMonth: string): [string, string] {
-    const [y, m] = yearMonth.split('-').map(Number)
-    const start = new Date(y, m - 1, 1)
-    const end = new Date(y, m, 1)
-    return [toISODate(start), toISODate(end)]
 }
 
 export async function getMonthlyStats(yearMonth: string): Promise<MonthlyStats> {

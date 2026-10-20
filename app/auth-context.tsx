@@ -8,6 +8,7 @@ export interface CurrentUser {
     firstName: string
     lastName: string
     role: 'admin' | 'user'
+    birthday?: string | null
     createdAt?: string
 }
 

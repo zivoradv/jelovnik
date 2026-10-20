@@ -64,6 +64,13 @@
       "when": 1792083312430,
       "tag": "0008_push_podsetnik",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792534321964,
+      "tag": "0009_rodjendani",
+      "breakpoints": true
     }
   ]
 }

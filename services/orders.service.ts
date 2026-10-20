@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 import { type Credit, credits, db, meals, type Order, orders, payments, users } from '@/drizzle'
 import { isWorkday } from '@/lib/constants'
-import { formatDateLong, fromISODate, toISODate, workdaysOfWeek } from '@/lib/date'
+import { formatDateLong, fromISODate, monthRange, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, isOrderingOpen } from '@/lib/deadline'
 import { allocateSubsidy, dayCostFromSnapshot, rsd, unitPrice } from '@/lib/pricing'
 import { notifyAdmins, notifyUsers } from './notifications.service'
@@ -327,10 +327,9 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
         .orderBy(asc(meals.name), asc(users.username))
 }
 
-export interface WeekTotals {
-    from: string
-    to: string
-    /** Puna cena svih porcija u nedelji. */
+export interface MonthTotals {
+    month: string
+    /** Puna cena svih porcija u mesecu. */
     full: number
     /** Deo koji pokriva firma. */
     subsidy: number
@@ -338,15 +337,15 @@ export interface WeekTotals {
     toPay: number
 }
 
-/** Ukupan iznos svih porudžbina za radnu nedelju u kojoj je `anyDayIso` (iz zamrznutih cena). */
-export async function getWeekTotals(anyDayIso: string): Promise<WeekTotals> {
-    const days = workdaysOfWeek(fromISODate(anyDayIso)).map(toISODate)
+/** Ukupan iznos svih porudžbina za mesec `ym` (YYYY-MM), iz zamrznutih cena. */
+export async function getMonthTotals(ym: string): Promise<MonthTotals> {
+    const [start, end] = monthRange(ym)
     const rows = await db
         .select({ quantity: orders.quantity, unitPrice: orders.unitPrice, subsidy: orders.subsidy })
         .from(orders)
-        .where(and(gte(orders.date, days[0]), lte(orders.date, days[4])))
+        .where(and(gte(orders.date, start), lt(orders.date, end)))
     const cost = dayCostFromSnapshot(rows)
-    return { from: days[0], to: days[4], full: cost.full, subsidy: cost.subsidy, toPay: cost.toPay }
+    return { month: ym, full: cost.full, subsidy: cost.subsidy, toPay: cost.toPay }
 }
 
 /** Korisnici koji imaju porudžbinu datog jela za današnji ili neki budući dan. */

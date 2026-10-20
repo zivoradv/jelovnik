@@ -53,3 +53,6 @@ export function formatAccountNumber(raw: string): string {
     if (digits.length !== 18) return raw
     return `${digits.slice(0, 3)}-${digits.slice(3, 16)}-${digits.slice(16)}`
 }
+
+/** Koliko svako daje za tuđi rođendan (RSD). */
+export const BIRTHDAY_CONTRIBUTION = 500

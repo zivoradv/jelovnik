@@ -3,6 +3,8 @@
 import BusinessIcon from '@mui/icons-material/Business'
 import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import DoneAllIcon from '@mui/icons-material/DoneAll'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -39,7 +41,7 @@ import {
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { formatDateLong, formatDateShort, fromISODate } from '@/lib/date'
+import { currentMonth, formatDateLong, fromISODate, monthLabel, shiftMonth } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { fullName, initials } from '@/lib/users'
 import { useConfirm } from '../confirm-context'
@@ -74,9 +76,8 @@ interface Balance {
     balance: number
 }
 
-interface WeekTotals {
-    from: string
-    to: string
+interface MonthTotals {
+    month: string
     full: number
     subsidy: number
     toPay: number
@@ -101,7 +102,8 @@ const STATUS_LABEL: Record<DebtStatus, { label: string; color: 'success' | 'prim
 export default function DebtsAdmin() {
     const confirm = useConfirm()
     const [balances, setBalances] = useState<Balance[]>([])
-    const [week, setWeek] = useState<WeekTotals | null>(null)
+    const [month, setMonth] = useState(currentMonth())
+    const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState('')
@@ -125,17 +127,17 @@ export default function DebtsAdmin() {
         setRefreshing(true)
         setError('')
         try {
-            const res = await fetch('/api/admin/payments')
+            const res = await fetch(`/api/admin/payments?month=${month}`)
             const data = await res.json()
             setBalances(data.balances || [])
-            setWeek(data.week ?? null)
+            setMonthTotals(data.month ?? null)
         } catch {
             setError('Greška pri učitavanju dugova.')
         } finally {
             setLoading(false)
             setRefreshing(false)
         }
-    }, [])
+    }, [month])
 
     useEffect(() => {
         load()
@@ -430,15 +432,28 @@ export default function DebtsAdmin() {
                 <StatTile label="Pretplata (kod tebe)" value={rsd(totals.credit)} icon={<SavingsOutlinedIcon fontSize="small" />} />
             </Box>
 
-            {week && (
+            {monthTotals && (
                 <Box sx={{ mb: 2.5 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        Ova nedelja: {formatDateShort(fromISODate(week.from))} – {formatDateShort(fromISODate(week.to))}
-                    </Typography>
+                    <Stack direction="row" spacing={0.5} sx={{ mb: 1, alignItems: 'center' }}>
+                        <IconButton size="small" aria-label="Prethodni mesec" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
+                            <ChevronLeftIcon fontSize="small" />
+                        </IconButton>
+                        <Typography variant="body2" color="text.secondary">
+                            Mesečni izveštaj: <b>{monthLabel(monthTotals.month)}</b>
+                        </Typography>
+                        <IconButton
+                            size="small"
+                            aria-label="Sledeći mesec"
+                            disabled={month >= currentMonth()}
+                            onClick={() => setMonth((m) => shiftMonth(m, 1))}
+                        >
+                            <ChevronRightIcon fontSize="small" />
+                        </IconButton>
+                    </Stack>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
-                        <StatTile label="Porudžbine ukupno" value={rsd(week.full)} icon={<RestaurantIcon fontSize="small" />} />
-                        <StatTile label="Plaćaju korisnici" value={rsd(week.toPay)} icon={<PaymentsIcon fontSize="small" />} />
-                        <StatTile label="Pokriva firma" value={rsd(week.subsidy)} icon={<BusinessIcon fontSize="small" />} />
+                        <StatTile label="Porudžbine ukupno" value={rsd(monthTotals.full)} icon={<RestaurantIcon fontSize="small" />} />
+                        <StatTile label="Plaćaju korisnici" value={rsd(monthTotals.toPay)} icon={<PaymentsIcon fontSize="small" />} />
+                        <StatTile label="Pokriva firma" value={rsd(monthTotals.subsidy)} icon={<BusinessIcon fontSize="small" />} />
                     </Box>
                 </Box>
             )}

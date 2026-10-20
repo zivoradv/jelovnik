@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ user })
 }
 
-/** { firstName?, lastName?, username? } */
+/** { firstName?, lastName?, username?, birthday? } */
 export async function PATCH(req: NextRequest) {
     const auth = await requireUser()
     if (auth.error) return auth.error
@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest) {
             firstName: body.firstName !== undefined ? String(body.firstName) : undefined,
             lastName: body.lastName !== undefined ? String(body.lastName) : undefined,
             username: body.username !== undefined ? String(body.username) : undefined,
+            birthday: body.birthday !== undefined ? (body.birthday ? String(body.birthday) : null) : undefined,
         })
         const res = NextResponse.json({ user })
         // token nosi korisničko ime, pa ga osvežavamo posle izmene

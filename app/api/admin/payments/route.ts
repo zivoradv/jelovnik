@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, DATE_RE, errorMessage, requireAdmin } from '@/lib/api'
-import { formatDateLong, fromISODate, toISODate } from '@/lib/date'
+import { currentMonth, formatDateLong, fromISODate, MONTH_RE } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { notifyUsers } from '@/services/notifications.service'
 import {
     applyCreditToDebts,
     getAllBalances,
     getCreditLog,
+    getMonthTotals,
     getUserBalance,
-    getWeekTotals,
     recordPayment,
     refundCredit,
     setAllPaid,
@@ -16,7 +16,7 @@ import {
     sweepOverpaidToCredit,
 } from '@/services/orders.service'
 
-/** Bez parametara – stanje svih korisnika; sa `?userId=` – istorija pretplate tog korisnika. */
+/** Stanje svih korisnika + mesečni zbir (`?month=YYYY-MM`, podrazumevano tekući); sa `?userId=` – istorija pretplate tog korisnika. */
 export async function GET(req: NextRequest) {
     const auth = await requireAdmin()
     if (auth.error) return auth.error
@@ -27,8 +27,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ credit: balance?.credit ?? 0, log })
     }
 
-    const [balances, week] = await Promise.all([getAllBalances(), getWeekTotals(toISODate(new Date()))])
-    return NextResponse.json({ balances, week })
+    const monthParam = req.nextUrl.searchParams.get('month') || ''
+    const month = MONTH_RE.test(monthParam) ? monthParam : currentMonth()
+    const [balances, monthTotals] = await Promise.all([getAllBalances(), getMonthTotals(month)])
+    return NextResponse.json({ balances, month: monthTotals })
 }
 
 function dayLabel(n: number): string {

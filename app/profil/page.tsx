@@ -46,6 +46,7 @@ export default function ProfilPage() {
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
     const [username, setUsername] = useState('')
+    const [birthday, setBirthday] = useState('')
     const [profileError, setProfileError] = useState('')
     const [savingProfile, setSavingProfile] = useState(false)
 
@@ -66,6 +67,7 @@ export default function ProfilPage() {
         setFirstName(user.firstName)
         setLastName(user.lastName)
         setUsername(user.username)
+        setBirthday(user.birthday ?? '')
     }, [user])
 
     useEffect(() => {
@@ -85,7 +87,8 @@ export default function ProfilPage() {
         return <PageLoader />
     }
 
-    const profileDirty = firstName !== user.firstName || lastName !== user.lastName || username !== user.username
+    const profileDirty =
+        firstName !== user.firstName || lastName !== user.lastName || username !== user.username || birthday !== (user.birthday ?? '')
     const mismatch = newPassword2.length > 0 && newPassword !== newPassword2
 
     async function saveProfile(e: FormEvent) {
@@ -96,7 +99,7 @@ export default function ProfilPage() {
             const res = await fetch('/api/profile', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ firstName, lastName, username }),
+                body: JSON.stringify({ firstName, lastName, username, birthday }),
             })
             const data = await res.json().catch(() => ({}))
             if (!res.ok) throw new Error(data.error || 'Greška pri čuvanju profila.')
@@ -275,6 +278,16 @@ export default function ProfilPage() {
                                     autoComplete="username"
                                     slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }}
                                     helperText="3–30 znakova: slova, brojevi, tačka, crtica, donja crta."
+                                />
+                                <TextField
+                                    label="Datum rođenja"
+                                    type="date"
+                                    value={birthday}
+                                    onChange={(e) => setBirthday(e.target.value)}
+                                    fullWidth
+                                    autoComplete="bday"
+                                    slotProps={{ inputLabel: { shrink: true } }}
+                                    helperText="Za rođendanski kalendar i skupljanje para."
                                 />
                                 <Button
                                     type="submit"

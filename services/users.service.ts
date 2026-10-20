@@ -1,12 +1,21 @@
 import { asc, eq, sql } from 'drizzle-orm'
 import { db, type User, users } from '@/drizzle'
+import { DATE_RE } from '@/lib/api'
 import { hashPassword, verifyPassword } from '@/lib/password'
 import { USERNAME_RE } from '@/lib/users'
 
-export type PublicUser = Pick<User, 'id' | 'username' | 'firstName' | 'lastName' | 'role' | 'createdAt'>
+export type PublicUser = Pick<User, 'id' | 'username' | 'firstName' | 'lastName' | 'role' | 'birthday' | 'createdAt'>
 
 function toPublic(u: User): PublicUser {
-    return { id: u.id, username: u.username, firstName: u.firstName, lastName: u.lastName, role: u.role, createdAt: u.createdAt }
+    return {
+        id: u.id,
+        username: u.username,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+        birthday: u.birthday,
+        createdAt: u.createdAt,
+    }
 }
 
 export async function getUserByUsername(username: string): Promise<User | undefined> {
@@ -96,6 +105,16 @@ export interface ProfilePatch {
     username?: string
     firstName?: string
     lastName?: string
+    /** YYYY-MM-DD, ili null da se obriše. */
+    birthday?: string | null
+}
+
+/** Prazno = brisanje; inače mora biti ispravan datum u prošlosti. */
+export function validateBirthday(value: string | null): string | null {
+    if (!value) return null
+    const d = new Date(`${value}T00:00:00`)
+    if (!DATE_RE.test(value) || Number.isNaN(d.getTime()) || d > new Date()) throw new Error('Neispravan datum rođenja.')
+    return value
 }
 
 export async function updateProfile(id: number, patch: ProfilePatch): Promise<PublicUser> {
@@ -108,6 +127,7 @@ export async function updateProfile(id: number, patch: ProfilePatch): Promise<Pu
     }
     if (patch.firstName !== undefined) set.firstName = validateName(patch.firstName, 'Ime')
     if (patch.lastName !== undefined) set.lastName = validateName(patch.lastName, 'Prezime')
+    if (patch.birthday !== undefined) set.birthday = validateBirthday(patch.birthday)
 
     if (Object.keys(set).length === 0) {
         const u = await getUserById(id)

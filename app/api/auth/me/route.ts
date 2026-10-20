@@ -23,6 +23,7 @@ export async function GET() {
             firstName: user.firstName,
             lastName: user.lastName,
             role: user.role,
+            birthday: user.birthday,
             createdAt: user.createdAt,
         },
     })

@@ -1,5 +1,6 @@
 'use client'
 
+import CakeIcon from '@mui/icons-material/Cake'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import GroupIcon from '@mui/icons-material/Group'
 import ListAltIcon from '@mui/icons-material/ListAlt'
@@ -10,13 +11,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { useAuth } from '../auth-context'
 import PageLoader from '../components/PageLoader'
+import BirthdaysAdmin from './BirthdaysAdmin'
 import DebtsAdmin from './DebtsAdmin'
 import MealsAdmin from './MealsAdmin'
 import OrdersAdmin from './OrdersAdmin'
 import RasporedAdmin from './RasporedAdmin'
 import UsersAdmin from './UsersAdmin'
 
-const TABS = ['raspored', 'jela', 'porudzbine', 'dugovi', 'korisnici'] as const
+const TABS = ['raspored', 'jela', 'porudzbine', 'dugovi', 'rodjendani', 'korisnici'] as const
 
 export default function AdminPage() {
     return (
@@ -59,7 +61,7 @@ function AdminInner() {
                     Administracija
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                    Dodeli šemu nedelji, uredi jela, pregledaj porudžbine, dugove i korisnike.
+                    Dodeli šemu nedelji, uredi jela, pregledaj porudžbine, dugove, rođendane i korisnike.
                 </Typography>
             </Box>
 
@@ -69,6 +71,7 @@ function AdminInner() {
                     <Tab icon={<RestaurantMenuIcon />} iconPosition="start" label="Jela" />
                     <Tab icon={<ListAltIcon />} iconPosition="start" label="Porudžbine" />
                     <Tab icon={<PaymentsIcon />} iconPosition="start" label="Dugovi" />
+                    <Tab icon={<CakeIcon />} iconPosition="start" label="Rođendani" />
                     <Tab icon={<GroupIcon />} iconPosition="start" label="Korisnici" />
                 </Tabs>
             </Card>
@@ -78,7 +81,8 @@ function AdminInner() {
                 {tab === 1 && <MealsAdmin />}
                 {tab === 2 && <OrdersAdmin />}
                 {tab === 3 && <DebtsAdmin />}
-                {tab === 4 && <UsersAdmin />}
+                {tab === 4 && <BirthdaysAdmin />}
+                {tab === 5 && <UsersAdmin />}
             </Box>
         </Stack>
     )

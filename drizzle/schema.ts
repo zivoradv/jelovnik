@@ -21,6 +21,8 @@ export const users = pgTable('users', {
     reminderTime: text('reminder_time'),
     /** Dan (Beograd) kada je poslednji podsetnik poslat – da ne stigne dvaput istog dana. */
     remindedOn: date('reminded_on'),
+    /** Datum rođenja; godina se ne prikazuje, bitni su dan i mesec. */
+    birthday: date('birthday'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -200,6 +202,24 @@ export const credits = pgTable(
     (t) => [index('credits_user_idx').on(t.userId)],
 )
 
+/** Ko je dao pare za čiji rođendan (jedan red = uplaćeno; nema reda = nije dao). */
+export const birthdayPayments = pgTable(
+    'birthday_payments',
+    {
+        id: serial('id').primaryKey(),
+        celebrantId: integer('celebrant_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        payerId: integer('payer_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        year: integer('year').notNull(),
+        amount: integer('amount').notNull(),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+    },
+    (t) => [uniqueIndex('birthday_payments_uidx').on(t.celebrantId, t.year, t.payerId)],
+)
+
 /** Globalna podešavanja (deo koji pokriva firma, cena čorbe...). */
 export const settings = pgTable('settings', {
     key: text('key').primaryKey(),
@@ -271,3 +291,4 @@ export type Notification = typeof notifications.$inferSelect
 export type NewNotification = typeof notifications.$inferInsert
 export type BeerPlan = typeof beerPlans.$inferSelect
 export type BeerRsvp = typeof beerRsvps.$inferSelect
+export type BirthdayPayment = typeof birthdayPayments.$inferSelect
