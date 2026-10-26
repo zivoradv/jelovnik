@@ -21,10 +21,10 @@ import {
     Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { BirthdayPerson as BirthdayUser } from '@/lib/birthdays'
 import { birthdayInYear, formatDayMonth } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { fullName, initials } from '@/lib/users'
-import type { BirthdayUser } from '@/services/birthdays.service'
 
 export default function BirthdaysAdmin() {
     const [year, setYear] = useState(new Date().getFullYear())

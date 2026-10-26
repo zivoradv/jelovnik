@@ -3,8 +3,6 @@
 import BusinessIcon from '@mui/icons-material/Business'
 import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import DoneAllIcon from '@mui/icons-material/DoneAll'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -41,7 +39,7 @@ import {
     Typography,
 } from '@mui/material'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { currentMonth, formatDateLong, fromISODate, monthLabel, shiftMonth } from '@/lib/date'
+import { currentMonth, formatDateLong, fromISODate, monthLabel, monthRange, shiftMonth, toISODate } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { fullName, initials } from '@/lib/users'
 import { useConfirm } from '../confirm-context'
@@ -76,11 +74,24 @@ interface Balance {
     balance: number
 }
 
-interface MonthTotals {
-    month: string
+interface Totals {
     full: number
     subsidy: number
     toPay: number
+}
+
+interface RangeTotals extends Totals {
+    from: string
+    to: string
+    months: (Totals & { month: string })[]
+}
+
+/** Ceo mesec kao [prvi dan, poslednji dan]. */
+function wholeMonth(ym: string): [string, string] {
+    const [start, next] = monthRange(ym)
+    const last = fromISODate(next)
+    last.setDate(last.getDate() - 1)
+    return [start, toISODate(last)]
 }
 
 interface CreditEntry {
@@ -102,8 +113,9 @@ const STATUS_LABEL: Record<DebtStatus, { label: string; color: 'success' | 'prim
 export default function DebtsAdmin() {
     const confirm = useConfirm()
     const [balances, setBalances] = useState<Balance[]>([])
-    const [month, setMonth] = useState(currentMonth())
-    const [monthTotals, setMonthTotals] = useState<MonthTotals | null>(null)
+    const [from, setFrom] = useState(() => monthRange(currentMonth())[0])
+    const [to, setTo] = useState(() => toISODate(new Date()))
+    const [range, setRange] = useState<RangeTotals | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState('')
@@ -127,17 +139,17 @@ export default function DebtsAdmin() {
         setRefreshing(true)
         setError('')
         try {
-            const res = await fetch(`/api/admin/payments?month=${month}`)
+            const res = await fetch(`/api/admin/payments?from=${from}&to=${to}`)
             const data = await res.json()
             setBalances(data.balances || [])
-            setMonthTotals(data.month ?? null)
+            setRange(data.totals ?? null)
         } catch {
             setError('Greška pri učitavanju dugova.')
         } finally {
             setLoading(false)
             setRefreshing(false)
         }
-    }, [month])
+    }, [from, to])
 
     useEffect(() => {
         load()
@@ -432,30 +444,99 @@ export default function DebtsAdmin() {
                 <StatTile label="Pretplata (kod tebe)" value={rsd(totals.credit)} icon={<SavingsOutlinedIcon fontSize="small" />} />
             </Box>
 
-            {monthTotals && (
-                <Box sx={{ mb: 2.5 }}>
-                    <Stack direction="row" spacing={0.5} sx={{ mb: 1, alignItems: 'center' }}>
-                        <IconButton size="small" aria-label="Prethodni mesec" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
-                            <ChevronLeftIcon fontSize="small" />
-                        </IconButton>
-                        <Typography variant="body2" color="text.secondary">
-                            Mesečni izveštaj: <b>{monthLabel(monthTotals.month)}</b>
+            {range && (
+                <Card sx={{ p: { xs: 2, sm: 2.5 }, mb: 2.5 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2, alignItems: { sm: 'center' } }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, flexGrow: 1 }}>
+                            Izveštaj za period
                         </Typography>
-                        <IconButton
-                            size="small"
-                            aria-label="Sledeći mesec"
-                            disabled={month >= currentMonth()}
-                            onClick={() => setMonth((m) => shiftMonth(m, 1))}
-                        >
-                            <ChevronRightIcon fontSize="small" />
-                        </IconButton>
+                        <Stack direction="row" spacing={1.5}>
+                            <TextField
+                                type="date"
+                                size="small"
+                                label="Od"
+                                value={from}
+                                onChange={(e) => {
+                                    if (!e.target.value) return
+                                    setFrom(e.target.value)
+                                    if (e.target.value > to) setTo(e.target.value)
+                                }}
+                                slotProps={{ inputLabel: { shrink: true } }}
+                            />
+                            <TextField
+                                type="date"
+                                size="small"
+                                label="Do"
+                                value={to}
+                                onChange={(e) => e.target.value && setTo(e.target.value)}
+                                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from } }}
+                            />
+                        </Stack>
                     </Stack>
+                    <Stack direction="row" spacing={1} useFlexGap sx={{ mb: 2, flexWrap: 'wrap' }}>
+                        {[
+                            { label: 'Ovaj mesec', range: [monthRange(currentMonth())[0], toISODate(new Date())] },
+                            { label: 'Prošli mesec', range: wholeMonth(shiftMonth(currentMonth(), -1)) },
+                            {
+                                label: 'Poslednjih 7 dana',
+                                range: [toISODate(new Date(Date.now() - 6 * 86_400_000)), toISODate(new Date())],
+                            },
+                        ].map((p) => (
+                            <Chip
+                                key={p.label}
+                                label={p.label}
+                                size="small"
+                                clickable
+                                color={from === p.range[0] && to === p.range[1] ? 'primary' : 'default'}
+                                onClick={() => {
+                                    setFrom(p.range[0])
+                                    setTo(p.range[1])
+                                }}
+                            />
+                        ))}
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        {formatDateLong(fromISODate(range.from))} – {formatDateLong(fromISODate(range.to))}
+                    </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
-                        <StatTile label="Porudžbine ukupno" value={rsd(monthTotals.full)} icon={<RestaurantIcon fontSize="small" />} />
-                        <StatTile label="Plaćaju korisnici" value={rsd(monthTotals.toPay)} icon={<PaymentsIcon fontSize="small" />} />
-                        <StatTile label="Pokriva firma" value={rsd(monthTotals.subsidy)} icon={<BusinessIcon fontSize="small" />} />
+                        <StatTile label="Porudžbine ukupno" value={rsd(range.full)} icon={<RestaurantIcon fontSize="small" />} />
+                        <StatTile label="Plaćaju korisnici" value={rsd(range.toPay)} icon={<PaymentsIcon fontSize="small" />} />
+                        <StatTile label="Pokriva firma" value={rsd(range.subsidy)} icon={<BusinessIcon fontSize="small" />} />
                     </Box>
-                </Box>
+                    {range.months.length > 1 && (
+                        <Box sx={{ mt: 2, overflowX: 'auto' }}>
+                            <Box
+                                component="table"
+                                sx={{
+                                    width: '100%',
+                                    borderCollapse: 'collapse',
+                                    '& th, & td': { py: 0.75, px: 1, borderBottom: 1, borderColor: 'divider', textAlign: 'right' },
+                                    '& th:first-of-type, & td:first-of-type': { textAlign: 'left', textTransform: 'capitalize' },
+                                    '& th': { color: 'text.secondary', fontWeight: 600, fontSize: '0.8rem' },
+                                }}
+                            >
+                                <thead>
+                                    <tr>
+                                        <th>Mesec</th>
+                                        <th>Ukupno</th>
+                                        <th>Korisnici</th>
+                                        <th>Firma</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {range.months.map((m) => (
+                                        <tr key={m.month}>
+                                            <td>{monthLabel(m.month)}</td>
+                                            <td>{rsd(m.full)}</td>
+                                            <td>{rsd(m.toPay)}</td>
+                                            <td>{rsd(m.subsidy)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Box>
+                        </Box>
+                    )}
+                </Card>
             )}
 
             <Alert severity="info" sx={{ mb: 2.5 }}>

@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
 import { type Credit, credits, db, meals, type Order, orders, payments, users } from '@/drizzle'
 import { isWorkday } from '@/lib/constants'
-import { formatDateLong, fromISODate, monthRange, toISODate, workdaysOfWeek } from '@/lib/date'
+import { formatDateLong, fromISODate, toISODate, workdaysOfWeek } from '@/lib/date'
 import { deadlineLabel, isOrderingOpen } from '@/lib/deadline'
 import { allocateSubsidy, dayCostFromSnapshot, rsd, unitPrice } from '@/lib/pricing'
 import { notifyAdmins, notifyUsers } from './notifications.service'
@@ -327,9 +327,8 @@ export async function getOrdersDetailForDate(dateStr: string): Promise<OrderDeta
         .orderBy(asc(meals.name), asc(users.username))
 }
 
-export interface MonthTotals {
-    month: string
-    /** Puna cena svih porcija u mesecu. */
+export interface Totals {
+    /** Puna cena svih porcija. */
     full: number
     /** Deo koji pokriva firma. */
     subsidy: number
@@ -337,15 +336,29 @@ export interface MonthTotals {
     toPay: number
 }
 
-/** Ukupan iznos svih porudžbina za mesec `ym` (YYYY-MM), iz zamrznutih cena. */
-export async function getMonthTotals(ym: string): Promise<MonthTotals> {
-    const [start, end] = monthRange(ym)
+export interface RangeTotals extends Totals {
+    from: string
+    to: string
+    /** Zbir po mesecima (samo meseci sa porudžbinama), hronološki. */
+    months: (Totals & { month: string })[]
+}
+
+/** Zbir porudžbina od `from` do `to` (YYYY-MM-DD, oba uključena), iz zamrznutih cena. */
+export async function getRangeTotals(from: string, to: string): Promise<RangeTotals> {
     const rows = await db
-        .select({ quantity: orders.quantity, unitPrice: orders.unitPrice, subsidy: orders.subsidy })
+        .select({ date: orders.date, quantity: orders.quantity, unitPrice: orders.unitPrice, subsidy: orders.subsidy })
         .from(orders)
-        .where(and(gte(orders.date, start), lt(orders.date, end)))
-    const cost = dayCostFromSnapshot(rows)
-    return { month: ym, full: cost.full, subsidy: cost.subsidy, toPay: cost.toPay }
+        .where(and(gte(orders.date, from), lte(orders.date, to)))
+    const byMonth = new Map<string, typeof rows>()
+    for (const r of rows) {
+        const ym = r.date.slice(0, 7)
+        byMonth.set(ym, [...(byMonth.get(ym) ?? []), r])
+    }
+    const months = [...byMonth.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, list]) => ({ month, ...dayCostFromSnapshot(list) }))
+    const sum = (k: keyof Totals) => months.reduce((acc, m) => acc + m[k], 0)
+    return { from, to, full: sum('full'), subsidy: sum('subsidy'), toPay: sum('toPay'), months }
 }
 
 /** Korisnici koji imaju porudžbinu datog jela za današnji ili neki budući dan. */

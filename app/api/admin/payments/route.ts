@@ -1,13 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, DATE_RE, errorMessage, requireAdmin } from '@/lib/api'
-import { currentMonth, formatDateLong, fromISODate, MONTH_RE } from '@/lib/date'
+import { formatDateLong, fromISODate, monthRange, toISODate } from '@/lib/date'
 import { rsd } from '@/lib/pricing'
 import { notifyUsers } from '@/services/notifications.service'
 import {
     applyCreditToDebts,
     getAllBalances,
     getCreditLog,
-    getMonthTotals,
+    getRangeTotals,
     getUserBalance,
     recordPayment,
     refundCredit,
@@ -16,7 +16,7 @@ import {
     sweepOverpaidToCredit,
 } from '@/services/orders.service'
 
-/** Stanje svih korisnika + mesečni zbir (`?month=YYYY-MM`, podrazumevano tekući); sa `?userId=` – istorija pretplate tog korisnika. */
+/** Stanje svih korisnika + zbir za period (`?from=YYYY-MM-DD&to=YYYY-MM-DD`, podrazumevano od početka meseca do danas); sa `?userId=` – istorija pretplate tog korisnika. */
 export async function GET(req: NextRequest) {
     const auth = await requireAdmin()
     if (auth.error) return auth.error
@@ -27,10 +27,15 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ credit: balance?.credit ?? 0, log })
     }
 
-    const monthParam = req.nextUrl.searchParams.get('month') || ''
-    const month = MONTH_RE.test(monthParam) ? monthParam : currentMonth()
-    const [balances, monthTotals] = await Promise.all([getAllBalances(), getMonthTotals(month)])
-    return NextResponse.json({ balances, month: monthTotals })
+    const today = toISODate(new Date())
+    const param = (key: string, fallback: string) => {
+        const v = req.nextUrl.searchParams.get(key) || ''
+        return DATE_RE.test(v) ? v : fallback
+    }
+    let [from, to] = [param('from', monthRange(today.slice(0, 7))[0]), param('to', today)]
+    if (from > to) [from, to] = [to, from]
+    const [balances, totals] = await Promise.all([getAllBalances(), getRangeTotals(from, to)])
+    return NextResponse.json({ balances, totals })
 }
 
 function dayLabel(n: number): string {

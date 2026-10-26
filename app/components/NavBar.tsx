@@ -1,6 +1,5 @@
 'use client'
 
-import CakeIcon from '@mui/icons-material/Cake'
 import CloseIcon from '@mui/icons-material/Close'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import ListAltIcon from '@mui/icons-material/ListAlt'
@@ -34,6 +33,7 @@ import { type ReactNode, useRef, useState } from 'react'
 import { fullName, initials } from '@/lib/users'
 import { useAuth } from '../auth-context'
 import { useFun } from '../fun-context'
+import BirthdayCalendar from './BirthdayCalendar'
 import BrandMark from './BrandMark'
 import NotificationBell from './NotificationBell'
 import ThemePicker from './ThemePicker'
@@ -52,7 +52,6 @@ const NAV_ITEMS: NavItem[] = [
     { href: '/dug', label: 'Moj dug', icon: <ReceiptLongIcon /> },
     { href: '/pivo', label: 'Pivo', icon: <SportsBarIcon /> },
     { href: '/statistika', label: 'Statistika', icon: <EmojiEventsIcon /> },
-    { href: '/rodjendani', label: 'Rođendani', icon: <CakeIcon /> },
     { href: '/profil', label: 'Profil', icon: <PersonOutlinedIcon />, mobileOnly: true },
     {
         href: '/admin?tab=porudzbine',
@@ -176,6 +175,7 @@ export default function NavBar() {
                             <ThemeToggle />
                         </Box>
 
+                        {user && <BirthdayCalendar />}
                         {user && <NotificationBell />}
 
                         {user && (

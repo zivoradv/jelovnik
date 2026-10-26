@@ -1,15 +1,18 @@
 'use client'
 
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined'
+import CakeOutlinedIcon from '@mui/icons-material/CakeOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import RestaurantIcon from '@mui/icons-material/Restaurant'
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { Alert, Box, Card, CardContent, Chip, Divider, IconButton, Snackbar, Stack, Tooltip, Typography } from '@mui/material'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type BirthdayPerson, myBirthdayEntries } from '@/lib/birthdays'
 import { formatAccountNumber, PAYMENT_RECIPIENT } from '@/lib/constants'
-import { formatDateLong, fromISODate } from '@/lib/date'
+import { formatDateLong, formatDayMonth, fromISODate } from '@/lib/date'
 import { debtRoast } from '@/lib/fun'
 import { rsd } from '@/lib/pricing'
 import { fullName } from '@/lib/users'
@@ -41,13 +44,23 @@ export default function DugPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [copied, setCopied] = useState('')
+    const [bdayPeople, setBdayPeople] = useState<BirthdayPerson[]>([])
+    const [bdayPaid, setBdayPaid] = useState<[number, number][]>([])
+    const [bdayAmount, setBdayAmount] = useState(0)
 
     const load = useCallback(async () => {
         setLoading(true)
         setError('')
         try {
-            const [paymentsRes, statsRes] = await Promise.all([fetch('/api/payments'), fetch('/api/stats/me')])
-            const [payments] = await Promise.all([paymentsRes.json(), statsRes.json()])
+            const [paymentsRes, statsRes, bdayRes] = await Promise.all([
+                fetch('/api/payments'),
+                fetch('/api/stats/me'),
+                fetch(`/api/birthdays?year=${new Date().getFullYear()}`),
+            ])
+            const [payments, , bday] = await Promise.all([paymentsRes.json(), statsRes.json(), bdayRes.json()])
+            setBdayPeople(bday.users || [])
+            setBdayPaid(bday.paid || [])
+            setBdayAmount(bday.amount || 0)
             setRows(payments.rows || [])
             setUnpaidTotal(payments.unpaidTotal || 0)
             setOverpaidTotal(payments.overpaidTotal || 0)
@@ -74,6 +87,11 @@ export default function DugPage() {
         }
     }
 
+    const birthdaysDue = useMemo(
+        () => (user ? myBirthdayEntries(bdayPeople, bdayPaid, user).filter((b) => b.status === 'treba') : []),
+        [bdayPeople, bdayPaid, user],
+    )
+
     if (loading) {
         return <PageLoader />
     }
@@ -81,9 +99,12 @@ export default function DugPage() {
     const subsidyTotal = rows.reduce((a, r) => a + r.subsidy, 0)
     // pretplata već pokriva deo duga, pa se uplaćuje samo ono što pretekne
     const toPay = Math.max(0, unpaidTotal - credit)
-    const settled = toPay <= 0
+    const birthdayTotal = birthdaysDue.length * bdayAmount
+    const grandTotal = toPay + birthdayTotal
+    const settled = grandTotal <= 0
     const accountNumber = formatAccountNumber(PAYMENT_RECIPIENT.account)
-    const purpose = user ? `Obroci – ${fullName(user)}` : 'Obroci'
+    const purposeWhat = birthdayTotal > 0 ? (toPay > 0 ? 'Obroci i rođendani' : 'Rođendani') : 'Obroci'
+    const purpose = user ? `${purposeWhat} – ${fullName(user)}` : purposeWhat
 
     return (
         <Stack spacing={{ xs: 2.5, sm: 3 }}>
@@ -130,7 +151,7 @@ export default function DugPage() {
                                 lineHeight: 1.1,
                             }}
                         >
-                            {rsd(toPay)}
+                            {rsd(grandTotal)}
                         </Typography>
                         {unpaidCount > 0 && (
                             <Chip size="small" variant="outlined" label={`${unpaidCount} ${unpaidCount === 1 ? 'dan' : 'dana'}`} />
@@ -143,6 +164,41 @@ export default function DugPage() {
                     </Stack>
 
                     <Divider sx={{ my: 2, borderStyle: 'dashed' }} />
+
+                    {birthdayTotal > 0 && (
+                        <Stack spacing={0.75} sx={{ mb: 2 }}>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                    <RestaurantIcon fontSize="small" sx={{ color: 'primary.main' }} />
+                                    <Typography variant="body2" color="text.secondary">
+                                        Obroci
+                                    </Typography>
+                                </Stack>
+                                <Typography sx={{ fontWeight: 600 }}>{rsd(toPay)}</Typography>
+                            </Stack>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                    <CakeOutlinedIcon fontSize="small" sx={{ color: 'warning.main' }} />
+                                    <Typography variant="body2" color="text.secondary">
+                                        Rođendani ({birthdaysDue.length} × {rsd(bdayAmount)})
+                                    </Typography>
+                                </Stack>
+                                <Typography sx={{ fontWeight: 600, color: 'warning.main' }}>{rsd(birthdayTotal)}</Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={0.75} useFlexGap sx={{ pl: 3.5, flexWrap: 'wrap' }}>
+                                {birthdaysDue.map((b) => (
+                                    <Chip
+                                        key={b.id}
+                                        size="small"
+                                        variant="outlined"
+                                        color="warning"
+                                        sx={{ maxWidth: '100%' }}
+                                        label={`${fullName(b)} · ${formatDayMonth(b.date)}`}
+                                    />
+                                ))}
+                            </Stack>
+                        </Stack>
+                    )}
 
                     <Stack spacing={0.75}>
                         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -206,12 +262,12 @@ export default function DugPage() {
                         <PaymentField label="Prima" value={PAYMENT_RECIPIENT.name} />
                         <PaymentField label="Broj računa" value={accountNumber} mono onCopy={() => copy('Broj računa', accountNumber)} />
                         <PaymentField label="Svrha uplate" value={purpose} onCopy={() => copy('Svrha uplate', purpose)} />
-                        {toPay > 0 && (
+                        {grandTotal > 0 && (
                             <PaymentField
                                 label={credit > 0 ? 'Iznos (posle pretplate)' : 'Iznos'}
-                                value={rsd(toPay)}
+                                value={rsd(grandTotal)}
                                 highlight
-                                onCopy={() => copy('Iznos', String(toPay))}
+                                onCopy={() => copy('Iznos', String(grandTotal))}
                             />
                         )}
                     </Stack>

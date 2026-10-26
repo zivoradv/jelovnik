@@ -1,18 +1,11 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { birthdayPayments, db, users } from '@/drizzle'
+import type { BirthdayPerson } from '@/lib/birthdays'
 import { BIRTHDAY_CONTRIBUTION } from '@/lib/constants'
 import { validateBirthday } from './users.service'
 
-export interface BirthdayUser {
-    id: number
-    username: string
-    firstName: string
-    lastName: string
-    birthday: string | null
-}
-
 export interface BirthdayOverview {
-    users: BirthdayUser[]
+    users: BirthdayPerson[]
     /** Uplate za datu godinu: [slavljenik, uplatilac]. */
     paid: [number, number][]
     amount: number
