@@ -18,17 +18,18 @@ const SOON_DAYS = 3
 
 type WithBirthday = BirthdayPerson & { birthday: string }
 
-/** Šta rođendan znači za ulogovanog korisnika; `ostalo` = nema šta da se plati (druga godina, pre njegovog naloga). */
-type Kind = 'moj' | 'treba' | 'placeno' | 'kasnije' | 'ostalo'
+/** Šta rođendan znači za ulogovanog korisnika; `ostalo` = nema šta da se plati (druga godina, pre njegovog naloga); `ne` = slavljenik ne učestvuje. */
+type Kind = 'moj' | 'treba' | 'placeno' | 'kasnije' | 'ne' | 'ostalo'
 
 /** Kad je više rođendana istog dana, dan dobija boju najvažnijeg. */
-const PRIORITY: Kind[] = ['moj', 'treba', 'placeno', 'kasnije', 'ostalo']
+const PRIORITY: Kind[] = ['moj', 'treba', 'placeno', 'kasnije', 'ne', 'ostalo']
 
 const KIND_COLOR: Record<Kind, 'primary' | 'warning' | 'success' | 'info' | null> = {
     moj: 'primary',
     treba: 'warning',
     placeno: 'success',
     kasnije: 'info',
+    ne: null,
     ostalo: null,
 }
 
@@ -72,7 +73,7 @@ export default function BirthdayCalendar() {
 
     const soon = useMemo(() => {
         const now = new Date()
-        return people.some((p) => nextBirthday(p.birthday, now).days <= SOON_DAYS)
+        return people.some((p) => p.birthdayFund && nextBirthday(p.birthday, now).days <= SOON_DAYS)
     }, [people])
 
     const [y, m] = month.split('-').map(Number)
@@ -93,6 +94,7 @@ export default function BirthdayCalendar() {
 
     function kindOf(id: number): Kind {
         if (id === user?.id) return 'moj'
+        if (people.find((p) => p.id === id)?.birthdayFund === false) return 'ne'
         return (y === today.getFullYear() && statusById.get(id)) || 'ostalo'
     }
 
@@ -268,6 +270,8 @@ function StatusChip({ kind, amount }: { kind: Kind; amount: number }) {
             return <Chip size="small" color="success" variant="outlined" label="Plaćeno ✓" />
         case 'kasnije':
             return <Chip size="small" color="info" variant="outlined" label="Kasnije" />
+        case 'ne':
+            return <Chip size="small" variant="outlined" label="Ne učestvuje" />
         default:
             return null
     }

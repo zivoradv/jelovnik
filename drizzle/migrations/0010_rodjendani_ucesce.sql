@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "birthday_fund" boolean DEFAULT true NOT NULL;

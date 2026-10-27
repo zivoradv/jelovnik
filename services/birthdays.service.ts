@@ -20,6 +20,7 @@ export async function getBirthdayOverview(year: number): Promise<BirthdayOvervie
                 firstName: users.firstName,
                 lastName: users.lastName,
                 birthday: users.birthday,
+                birthdayFund: users.birthdayFund,
             })
             .from(users)
             .orderBy(asc(users.lastName), asc(users.firstName)),
@@ -29,6 +30,10 @@ export async function getBirthdayOverview(year: number): Promise<BirthdayOvervie
             .where(eq(birthdayPayments.year, year)),
     ])
     return { users: list, paid: rows.map((r) => [r.celebrantId, r.payerId]), amount: BIRTHDAY_CONTRIBUTION }
+}
+
+export async function setBirthdayFund(userId: number, fund: boolean): Promise<void> {
+    await db.update(users).set({ birthdayFund: fund }).where(eq(users.id, userId))
 }
 
 export async function setUserBirthday(userId: number, birthday: string | null): Promise<void> {

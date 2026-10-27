@@ -23,6 +23,8 @@ export const users = pgTable('users', {
     remindedOn: date('reminded_on'),
     /** Datum rođenja; godina se ne prikazuje, bitni su dan i mesec. */
     birthday: date('birthday'),
+    /** Da li učestvuje u skupljanju para za rođendane (daje za druge i drugi daju za njega). */
+    birthdayFund: boolean('birthday_fund').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

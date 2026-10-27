@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { badRequest, errorMessage, requireAdmin } from '@/lib/api'
-import { setBirthdayPaid, setUserBirthday } from '@/services/birthdays.service'
+import { setBirthdayFund, setBirthdayPaid, setUserBirthday } from '@/services/birthdays.service'
 
 /**
+ * { userId, fund }                            – da li korisnik učestvuje u skupljanju za rođendane
  * { userId, birthday }                         – upiši/obriši datum rođenja korisniku
  * { celebrantId, payerId, year, paid }         – označi da je neko dao (ili nije) pare za rođendan
  */
@@ -14,6 +15,10 @@ export async function POST(req: NextRequest) {
         if (body.userId !== undefined) {
             const userId = Number(body.userId)
             if (!userId) return badRequest('Nedostaje userId.')
+            if (body.fund !== undefined) {
+                await setBirthdayFund(userId, Boolean(body.fund))
+                return NextResponse.json({ ok: true })
+            }
             await setUserBirthday(userId, body.birthday ? String(body.birthday) : null)
             return NextResponse.json({ ok: true })
         }

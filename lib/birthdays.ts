@@ -12,6 +12,8 @@ export interface BirthdayPerson {
     firstName: string
     lastName: string
     birthday: string | null
+    /** false = ne učestvuje u skupljanju (ne daje i ne dobija). */
+    birthdayFund: boolean
 }
 
 export interface BirthdayEntry extends BirthdayPerson {
@@ -29,6 +31,7 @@ function startOfDay(d: Date): Date {
 /**
  * Ovogodišnji rođendani ostalih sa statusom uplate korisnika `me`.
  * Rođendani pre nego što je korisnik napravio nalog se ne računaju (osim ako je ipak dao).
+ * Ko ne učestvuje u skupljanju niti daje niti se za njega daje.
  */
 export function myBirthdayEntries(
     people: BirthdayPerson[],
@@ -40,8 +43,9 @@ export function myBirthdayEntries(
     const year = today.getFullYear()
     const joined = me.createdAt ? startOfDay(new Date(me.createdAt)) : null
     const order: Record<BirthdayStatus, number> = { treba: 0, kasnije: 1, placeno: 2 }
+    if (people.find((p) => p.id === me.id)?.birthdayFund === false) return []
     return people
-        .filter((p): p is BirthdayPerson & { birthday: string } => !!p.birthday && p.id !== me.id)
+        .filter((p): p is BirthdayPerson & { birthday: string } => !!p.birthday && p.birthdayFund && p.id !== me.id)
         .map((p) => {
             const date = birthdayInYear(p.birthday, year)
             const days = Math.round((date.getTime() - today.getTime()) / 86_400_000)
