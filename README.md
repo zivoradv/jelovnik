@@ -17,7 +17,7 @@ Napravljeno sa **Next.js + TypeScript + React + MUI**, baza preko **Drizzle ORM*
 - **Čorba**: uz kuvano jelo je uključena; uz suvi obrok se dodaje po izboru (+100 RSD, podesivo)
 - **Popust firme**: firma pokriva deo cene jedne porcije dnevno – procenat ili fiksan iznos u dinarima (podesivo); svaka dodatna porcija se plaća u celosti;
   na hover cene jela vidi se koliko se stvarno plaća
-- **Rok za naručivanje**: najkasnije dan ranije do 17:00 (Europe/Belgrade); za isti dan se ne može naručiti
+- **Rok za naručivanje**: najkasnije dan ranije do 14:30 (Europe/Belgrade); za isti dan se ne može naručiti
 - **Pivo 🍺**: stranica `/pivo` – predlozi (datum, vreme, mesto), ko ide / ne ide, obaveštenja kad neko predloži ili se prijavi;
   u kafanskom modu (7× klik na logo) povremeno iskače pitanje „Pivo?” sa Da/Ne
 - **Dodatak / napomena** uz kuvano jelo (npr. „bez luka“); suvi obrok nema napomenu

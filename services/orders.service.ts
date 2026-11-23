@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, gte, inArray, lte, sql } from 'drizzle-orm'
 import { type Credit, credits, db, meals, type Order, orders, payments, users } from '@/drizzle'
 import { isWorkday } from '@/lib/constants'
 import { formatDateLong, fromISODate, toISODate, workdaysOfWeek } from '@/lib/date'
-import { deadlineLabel, isOrderingOpen } from '@/lib/deadline'
+import { deadlineLabel, isOrderingOpen, ORDER_DEADLINE_TIME } from '@/lib/deadline'
 import { allocateSubsidy, dayCostFromSnapshot, rsd, unitPrice } from '@/lib/pricing'
 import { notifyAdmins, notifyUsers } from './notifications.service'
 import { getPricingSettings } from './settings.service'
@@ -86,7 +86,9 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
         throw new Error('Poručivanje je moguće samo za radne dane (ponedeljak–petak).')
     }
     if (!isOrderingOpen(dateStr)) {
-        throw new Error(`Rok za naručivanje je istekao (${deadlineLabel(dateStr)}). Naručuje se najkasnije dan ranije do 17h.`)
+        throw new Error(
+            `Rok za naručivanje je istekao (${deadlineLabel(dateStr)}). Naručuje se najkasnije dan ranije do ${ORDER_DEADLINE_TIME}.`,
+        )
     }
 
     const mealIds = [...new Set(items.map((it) => it.mealId).filter((id): id is number => typeof id === 'number' && id > 0))]

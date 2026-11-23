@@ -1,7 +1,7 @@
 import { addDays, formatDateLong, fromISODate, toISODate } from './date'
 
-/** Rok za naručivanje: dan ranije do ovog sata (Europe/Belgrade). */
-export const ORDER_DEADLINE_HOUR = 17
+/** Rok za naručivanje: dan ranije do ovog vremena, HH:MM (Europe/Belgrade). */
+export const ORDER_DEADLINE_TIME = '14:30'
 export const TIME_ZONE = 'Europe/Belgrade'
 
 /** Pomeraj beogradske zone u minutima u datom trenutku (npr. 120 leti, 60 zimi). */
@@ -21,12 +21,13 @@ function belgradeOffsetMinutes(at: Date): number {
     return Math.round((asUtc - at.getTime()) / 60_000)
 }
 
-/** Trenutak u kome ističe rok za naručivanje za dati dan (YYYY-MM-DD): prethodni dan u 17:00 po Beogradu. */
+/** Trenutak u kome ističe rok za naručivanje za dati dan (YYYY-MM-DD): prethodni dan u ORDER_DEADLINE_TIME po Beogradu. */
 export function orderDeadline(dateStr: string): Date {
     const d = fromISODate(dateStr)
     const prev = addDays(d, -1)
+    const [hour, minute] = ORDER_DEADLINE_TIME.split(':').map(Number)
     // prvo pretpostavimo UTC, pa korigujemo za stvarni pomeraj zone u tom trenutku
-    const guess = new Date(Date.UTC(prev.getFullYear(), prev.getMonth(), prev.getDate(), ORDER_DEADLINE_HOUR, 0, 0))
+    const guess = new Date(Date.UTC(prev.getFullYear(), prev.getMonth(), prev.getDate(), hour, minute, 0))
     const offset = belgradeOffsetMinutes(guess)
     return new Date(guess.getTime() - offset * 60_000)
 }
@@ -35,11 +36,11 @@ export function isOrderingOpen(dateStr: string, now = new Date()): boolean {
     return now.getTime() < orderDeadline(dateStr).getTime()
 }
 
-/** Tekst roka za prikaz: „ponedeljak, 14.09.2026. do 17:00”. */
+/** Tekst roka za prikaz: „ponedeljak, 14.09.2026. do 14:30”. */
 export function deadlineLabel(dateStr: string): string {
     const prev = addDays(fromISODate(dateStr), -1)
     const dayName = new Intl.DateTimeFormat('sr-Latn-RS', { weekday: 'long', timeZone: TIME_ZONE }).format(prev)
-    return `${dayName}, ${formatDateLong(prev)} do ${ORDER_DEADLINE_HOUR}:00`
+    return `${dayName}, ${formatDateLong(prev)} do ${ORDER_DEADLINE_TIME}`
 }
 
 /** Prvi radni dan za koji se još može naručiti (za podrazumevani izbor na početnoj). */

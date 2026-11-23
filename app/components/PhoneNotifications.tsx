@@ -4,6 +4,7 @@ import AddToHomeScreenIcon from '@mui/icons-material/AddToHomeScreen'
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined'
 import { Alert, Button, Card, CardContent, Divider, Stack, Switch, TextField, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
+import { ORDER_DEADLINE_TIME } from '@/lib/deadline'
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
@@ -147,7 +148,8 @@ export default function PhoneNotifications({ onSaved }: { onSaved: (msg: string)
                         />
                     </Stack>
                     <Typography variant="body2" color="text.secondary">
-                        Ako do izabranog vremena nemaš porudžbinu za sledeći radni dan, stići će ti podsetnik (rok je dan ranije do 17:00).
+                        Ako do izabranog vremena nemaš porudžbinu za sledeći radni dan, stići će ti podsetnik (rok je dan ranije do{' '}
+                        {ORDER_DEADLINE_TIME}).
                     </Typography>
                     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                         <TextField

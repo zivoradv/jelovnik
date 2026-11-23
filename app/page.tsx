@@ -42,7 +42,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { type Badge, computeBadges, type UserStats } from '@/lib/badges'
 import { WEEKDAYS } from '@/lib/constants'
 import { addDays, formatDateLong, formatDateShort, fromISODate, startOfWeek, toISODate, workdaysOfWeek } from '@/lib/date'
-import { deadlineLabel, firstOrderableWorkday, isOrderingOpen } from '@/lib/deadline'
+import { deadlineLabel, firstOrderableWorkday, isOrderingOpen, ORDER_DEADLINE_TIME } from '@/lib/deadline'
 import { EMPTY_MENU_MESSAGES, greeting, LOADING_MESSAGES, quantityReaction, randomOf, SAVE_MESSAGES } from '@/lib/fun'
 import { computeDayCost, type DayCost, DEFAULT_PRICING, type PricingSettings, rsd, subsidyFor, unitPrice } from '@/lib/pricing'
 import { fullName, initials } from '@/lib/users'
@@ -115,7 +115,7 @@ export default function HomePage() {
     const { user, loading: authLoading } = useAuth()
     const { confetti } = useFun()
 
-    // podrazumevano: prvi radni dan za koji rok (dan ranije do 17h) još nije istekao
+    // podrazumevano: prvi radni dan za koji rok (vidi lib/deadline) još nije istekao
     const initialDate = useMemo(() => firstOrderableWorkday(), [])
 
     const [weekAnchor, setWeekAnchor] = useState<Date>(initialDate)
@@ -472,7 +472,8 @@ export default function HomePage() {
                 </Alert>
             ) : (
                 <Alert severity="warning">
-                    Naručuje se najkasnije dan ranije do 17:00. Rok za {selectedDayName.toLowerCase()}: {deadlineLabel(selectedDate)}.
+                    Naručuje se najkasnije dan ranije do {ORDER_DEADLINE_TIME}. Rok za {selectedDayName.toLowerCase()}:{' '}
+                    {deadlineLabel(selectedDate)}.
                 </Alert>
             )}
 
