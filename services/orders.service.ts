@@ -117,10 +117,10 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
         })
     }
 
-    const del = db.delete(orders).where(and(eq(orders.userId, userId), eq(orders.date, dateStr)))
+    const ofDay = and(eq(orders.userId, userId), eq(orders.date, dateStr))
 
     if (merged.size === 0) {
-        await del
+        await db.delete(orders).where(ofDay)
         await afterOrderChange(userId, dateStr, 0)
         return []
     }
@@ -145,9 +145,10 @@ export async function saveUserOrders(userId: number, dateStr: string, items: Ord
         subsidy: subsidies[i],
     }))
 
-    const ins = db.insert(orders).values(values).returning()
-    const res = await db.batch([del, ins])
-    const saved = res[1] as Order[]
+    const saved = await db.transaction(async (tx) => {
+        await tx.delete(orders).where(ofDay)
+        return tx.insert(orders).values(values).returning()
+    })
 
     await afterOrderChange(userId, dateStr, dayCostFromSnapshot(saved).toPay)
     return saved

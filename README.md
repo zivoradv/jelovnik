@@ -111,6 +111,8 @@ Podrazumevani admin: `admin` / `admin123` (promeni preko `.env` ili posle prijav
 
 ## Objavljivanje (deploy)
 
+Sopstveni server (Docker Postgres, prenos sa Neona): vidi [PRENOS.md](PRENOS.md).
+
 Najlakše preko **[Vercel](https://vercel.com)**:
 
 1. Postavi kod na GitHub.

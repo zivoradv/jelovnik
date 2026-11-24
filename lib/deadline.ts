@@ -4,6 +4,9 @@ import { addDays, formatDateLong, fromISODate, toISODate } from './date'
 export const ORDER_DEADLINE_TIME = '14:30'
 export const TIME_ZONE = 'Europe/Belgrade'
 
+/** Kad stiže podsetnik za naručivanje (Beograd) – cron se zove jednom dnevno, da ne drži bazu budnom. */
+export const REMINDER_TIME = '11:00'
+
 /** Pomeraj beogradske zone u minutima u datom trenutku (npr. 120 leti, 60 zimi). */
 function belgradeOffsetMinutes(at: Date): number {
     const parts = new Intl.DateTimeFormat('en-US', {

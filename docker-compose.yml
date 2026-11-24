@@ -1,0 +1,23 @@
+services:
+    db:
+        image: postgres:18
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-brezna}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Upisi POSTGRES_PASSWORD u .env}
+            POSTGRES_DB: ${POSTGRES_DB:-brezna_obrok}
+        ports:
+            # samo sa ovog servera – baza nije izložena internetu
+            - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+        volumes:
+            # postgres 18+ drži podatke u podfolderu po verziji, zato ne .../data
+            - db-data:/var/lib/postgresql
+        healthcheck:
+            # preko TCP-a: tokom prve inicijalizacije server sluša samo na socketu, pa ne javlja prerano da je spreman
+            test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+            interval: 5s
+            timeout: 5s
+            retries: 20
+
+volumes:
+    db-data:

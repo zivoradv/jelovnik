@@ -1,7 +1,7 @@
-import { and, eq, isNotNull, isNull, lt, lte, notExists, or } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, lt, notExists, or } from 'drizzle-orm'
 import { db, orders, users } from '@/drizzle'
 import { formatDateShort, toISODate } from '@/lib/date'
-import { deadlineLabel, firstOrderableWorkday, orderDeadline, TIME_ZONE } from '@/lib/deadline'
+import { deadlineLabel, firstOrderableWorkday, orderDeadline, REMINDER_TIME, TIME_ZONE } from '@/lib/deadline'
 import { rsd } from '@/lib/pricing'
 import { notifyUsers } from './notifications.service'
 import { applyCreditToDebts, getAllBalances } from './orders.service'
@@ -31,17 +31,17 @@ export async function sendDebtReminders(): Promise<{ notified: number; total: nu
 }
 
 /**
- * Podsetnik za naručivanje u vreme koje je korisnik izabrao. Poziva se često (npr. na 5 min);
+ * Podsetnik za naručivanje u REMINDER_TIME, korisnicima koji su ga uključili.
  * šalje se samo na dan kad ističe rok za sledeći radni dan, i samo onima koji za taj dan još nisu naručili.
  */
 export async function sendOrderReminders(now = new Date()): Promise<{ notified: number }> {
     const target = firstOrderableWorkday(now)
     const targetIso = toISODate(target)
-    if (orderDeadline(targetIso).getTime() - now.getTime() > 24 * 60 * 60 * 1000) return { notified: 0 }
+    const belgrade = new Intl.DateTimeFormat('sv-SE', { timeZone: TIME_ZONE, dateStyle: 'short', timeStyle: 'short' })
+    const [today, hhmm] = belgrade.format(now).split(' ')
+    // van termina i na dane kad rok ne ističe baza se uopšte ne dira
+    if (belgrade.format(orderDeadline(targetIso)).split(' ')[0] !== today || hhmm < REMINDER_TIME) return { notified: 0 }
 
-    const [today, hhmm] = new Intl.DateTimeFormat('sv-SE', { timeZone: TIME_ZONE, dateStyle: 'short', timeStyle: 'short' })
-        .format(now)
-        .split(' ')
     // označavanje i izbor u jednom upitu – dva preklopljena poziva crona ne šalju duplo
     const due = await db
         .update(users)
@@ -49,7 +49,6 @@ export async function sendOrderReminders(now = new Date()): Promise<{ notified: 
         .where(
             and(
                 isNotNull(users.reminderTime),
-                lte(users.reminderTime, hhmm),
                 or(isNull(users.remindedOn), lt(users.remindedOn, today)),
                 notExists(
                     db

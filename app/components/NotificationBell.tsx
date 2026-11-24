@@ -40,9 +40,9 @@ const ICONS: Record<NotificationItem['type'], ReactNode> = {
     pivo: <SportsBarIcon fontSize="small" />,
 }
 
-// Retko polling + pauza dok tab nije vidljiv: svaki upit budi Neon bazu (autosuspend posle 5 min),
-// pa tab otvoren u pozadini ne sme da je drži budnom ceo dan.
-const POLL_MS = 3 * 60_000
+// Bez pollinga: otvoren tab ne sme da drži bazu budnom ceo dan. Učitava se pri otvaranju aplikacije i
+// pri povratku na tab, ali ne češće od ovoga; nova obaveštenja svejedno stižu kao push.
+const MIN_REFRESH_MS = 5 * 60_000
 
 function relativeTime(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime()
@@ -73,18 +73,15 @@ export default function NotificationBell() {
     }, [])
 
     useEffect(() => {
+        let last = Date.now()
         const loadIfVisible = () => {
-            if (document.visibilityState === 'visible') load()
+            if (document.visibilityState !== 'visible' || Date.now() - last < MIN_REFRESH_MS) return
+            last = Date.now()
+            load()
         }
         load()
-        const id = setInterval(loadIfVisible, POLL_MS)
         document.addEventListener('visibilitychange', loadIfVisible)
-        window.addEventListener('focus', loadIfVisible)
-        return () => {
-            clearInterval(id)
-            document.removeEventListener('visibilitychange', loadIfVisible)
-            window.removeEventListener('focus', loadIfVisible)
-        }
+        return () => document.removeEventListener('visibilitychange', loadIfVisible)
     }, [load])
 
     async function markAll() {

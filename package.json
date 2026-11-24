@@ -25,12 +25,12 @@
         "@mui/icons-material": "^9.4.0",
         "@mui/material": "^9.4.0",
         "@mui/material-nextjs": "^9.4.0",
-        "@neondatabase/serverless": "^1.1.0",
         "bcryptjs": "^3.0.3",
         "dotenv": "^17.4.2",
         "drizzle-orm": "^0.45.2",
         "jose": "^6.2.12",
         "next": "^16.3.5",
+        "pg": "^8.23.1",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "web-push": "^3.6.7"
@@ -38,6 +38,7 @@
     "devDependencies": {
         "@biomejs/biome": "^2.5.13",
         "@types/node": "^26.5.1",
+        "@types/pg": "^8.23.1",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
         "@types/web-push": "^3.6.4",

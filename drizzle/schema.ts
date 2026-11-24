@@ -17,7 +17,7 @@ export const users = pgTable('users', {
     firstName: text('first_name').notNull().default(''),
     lastName: text('last_name').notNull().default(''),
     role: roleEnum('role').notNull().default('user'),
-    /** Vreme podsetnika za naručivanje (HH:MM, Beograd); null = isključen. */
+    /** Podsetnik za naručivanje: null = isključen, bilo koja vrednost = uključen (stiže u REMINDER_TIME). */
     reminderTime: text('reminder_time'),
     /** Dan (Beograd) kada je poslednji podsetnik poslat – da ne stigne dvaput istog dana. */
     remindedOn: date('reminded_on'),

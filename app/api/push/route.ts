@@ -2,9 +2,8 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db, users } from '@/drizzle'
 import { badRequest, requireUser } from '@/lib/api'
+import { REMINDER_TIME } from '@/lib/deadline'
 import { deleteSubscription, saveSubscription } from '@/services/push.service'
-
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export async function GET() {
     const auth = await requireUser()
@@ -13,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ reminderTime: rows[0]?.reminderTime ?? null })
 }
 
-/** { subscription?: PushSubscriptionJSON, reminderTime?: 'HH:MM' | null } */
+/** { subscription?: PushSubscriptionJSON, reminderTime?: REMINDER_TIME | null (isključen) } */
 export async function PUT(req: NextRequest) {
     const auth = await requireUser()
     if (auth.error) return auth.error
@@ -29,7 +28,7 @@ export async function PUT(req: NextRequest) {
         })
     }
     if (body.reminderTime !== undefined) {
-        if (body.reminderTime !== null && !TIME_RE.test(body.reminderTime)) return badRequest('Neispravno vreme.')
+        if (body.reminderTime !== null && body.reminderTime !== REMINDER_TIME) return badRequest('Neispravno vreme.')
         await db.update(users).set({ reminderTime: body.reminderTime }).where(eq(users.id, auth.user.sub))
     }
     return NextResponse.json({ ok: true })

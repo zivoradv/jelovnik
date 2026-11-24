@@ -2,9 +2,9 @@
 
 import AddToHomeScreenIcon from '@mui/icons-material/AddToHomeScreen'
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined'
-import { Alert, Button, Card, CardContent, Divider, Stack, Switch, TextField, Typography } from '@mui/material'
+import { Alert, Button, Card, CardContent, Divider, Stack, Switch, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
-import { ORDER_DEADLINE_TIME } from '@/lib/deadline'
+import { ORDER_DEADLINE_TIME, REMINDER_TIME } from '@/lib/deadline'
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
@@ -29,7 +29,6 @@ export default function PhoneNotifications({ onSaved }: { onSaved: (msg: string)
     const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null)
     const [subscribed, setSubscribed] = useState(false)
     const [reminderTime, setReminderTime] = useState<string | null>(null)
-    const [time, setTime] = useState('10:00')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
 
@@ -46,7 +45,6 @@ export default function PhoneNotifications({ onSaved }: { onSaved: (msg: string)
             .then((r) => r.json())
             .then((d) => {
                 setReminderTime(d.reminderTime ?? null)
-                if (d.reminderTime) setTime(d.reminderTime)
             })
             .catch(() => {})
         const onPrompt = (e: Event) => {
@@ -99,7 +97,7 @@ export default function PhoneNotifications({ onSaved }: { onSaved: (msg: string)
         run(async () => {
             await api('PUT', { reminderTime: value })
             setReminderTime(value)
-            onSaved(value ? `Podsetnik je podešen na ${value}.` : 'Podsetnik je isključen.')
+            onSaved(value ? `Podsetnik je uključen (${value}).` : 'Podsetnik je isključen.')
         })
 
     return (
@@ -142,28 +140,15 @@ export default function PhoneNotifications({ onSaved }: { onSaved: (msg: string)
                         <Typography sx={{ fontWeight: 600 }}>Podsetnik za naručivanje</Typography>
                         <Switch
                             checked={reminderTime !== null}
-                            onChange={(e) => saveReminder(e.target.checked ? time : null)}
+                            onChange={(e) => saveReminder(e.target.checked ? REMINDER_TIME : null)}
                             disabled={busy}
                             slotProps={{ input: { 'aria-label': 'Podsetnik za naručivanje' } }}
                         />
                     </Stack>
                     <Typography variant="body2" color="text.secondary">
-                        Ako do izabranog vremena nemaš porudžbinu za sledeći radni dan, stići će ti podsetnik (rok je dan ranije do{' '}
+                        Ako do {REMINDER_TIME} nemaš porudžbinu za sledeći radni dan, stići će ti podsetnik (rok je dan ranije do{' '}
                         {ORDER_DEADLINE_TIME}).
                     </Typography>
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                        <TextField
-                            label="Vreme"
-                            type="time"
-                            size="small"
-                            value={time}
-                            onChange={(e) => setTime(e.target.value)}
-                            slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                        />
-                        <Button variant="outlined" onClick={() => saveReminder(time)} disabled={busy || !time || time === reminderTime}>
-                            Sačuvaj
-                        </Button>
-                    </Stack>
 
                     {!installed && (
                         <>

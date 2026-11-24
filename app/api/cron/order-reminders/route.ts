@@ -2,9 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { sendOrderReminders } from '@/services/reminders.service'
 
 /**
- * Podsetnik za naručivanje u vreme koje je korisnik izabrao. Treba ga zvati često (na 5 min) –
- * Vercel Hobby dozvoljava cron samo jednom dnevno, pa ga zove spoljni scheduler (npr. cron-job.org)
- * sa headerom `Authorization: Bearer ${CRON_SECRET}`.
+ * Podsetnik za naručivanje. Treba ga zvati nedelja–četvrtak u 11:00 po Beogradu
+ * (REMINDER_TIME u lib/deadline) – spoljni scheduler (npr. cron-job.org) sa headerom `Authorization: Bearer ${CRON_SECRET}`.
  */
 export async function GET(req: NextRequest) {
     const secret = process.env.CRON_SECRET
